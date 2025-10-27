@@ -133,6 +133,57 @@
         </div>
     </div>
 
+    <!-- Экран ожидания собеседника -->
+    <div class="screen" id="waitingScreen">
+        <div class="container">
+            <div class="screen-header">
+                <button class="back-button" onclick="cancelWaiting()">‹</button>
+                <div class="chat-info">
+                    <div class="chat-title">Ожидание собеседника</div>
+                    <div class="chat-members">Поиск подходящего пользователя...</div>
+                </div>
+            </div>
+
+            <div class="waiting-content">
+                <div class="waiting-animation">
+                    <div class="pulse-circle"></div>
+                    <div class="pulse-circle"></div>
+                    <div class="pulse-circle"></div>
+                </div>
+                <div class="waiting-text" id="waitingText">
+                    Ищем собеседника по вашим критериям...
+                </div>
+                <div class="waiting-stats">
+                    <div class="waiting-stat">
+                        <div class="stat-icon">👤</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="onlineUsersCount">0</div>
+                            <div class="stat-label">пользователей онлайн</div>
+                        </div>
+                    </div>
+                    <div class="waiting-stat">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="waitingTime">0:00</div>
+                            <div class="stat-label">время ожидания</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="waiting-tips">
+                    <div class="tip-item">
+                        <div class="tip-icon">💡</div>
+                        <div class="tip-text">Попробуйте изменить критерии поиска для быстрого подбора</div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-icon">🔔</div>
+                        <div class="tip-text">Мы уведомим вас, когда найдем подходящего собеседника</div>
+                    </div>
+                </div>
+                <button class="cancel-button" onclick="cancelWaiting()">Отменить поиск</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Экран чата -->
     <div class="screen" id="chatRoomScreen">
         <div class="container">
@@ -215,7 +266,7 @@
                 <input type="hidden" id="maxAge" value="35">
             </div>
             
-            <button class="create-button" onclick="createChat()">Создать чат</button>
+            <button class="create-button" onclick="createChat()">Начать поиск собеседника</button>
         </div>
     </div>
 
