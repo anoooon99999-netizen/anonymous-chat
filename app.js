@@ -867,3 +867,185 @@ function openAppInfo() {
 
 // Запуск приложения
 document.addEventListener('DOMContentLoaded', initApp);
+// ===== БАЗОВЫЕ ФУНКЦИИ ИНТЕРФЕЙСА =====
+
+// Переключение между экранами
+function showScreen(screenId) {
+    console.log('Переключение на экран:', screenId);
+    const screens = document.querySelectorAll('.screen');
+    screens.forEach(screen => {
+        screen.classList.remove('active');
+    });
+    
+    const targetScreen = document.getElementById(screenId);
+    if (targetScreen) {
+        targetScreen.classList.add('active');
+    }
+    
+    // Обновляем активное меню
+    const menuItems = document.querySelectorAll('.menu-item');
+    menuItems.forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    if (screenId === 'chatsScreen') {
+        document.querySelector('.menu-item:nth-child(1)')?.classList.add('active');
+    } else if (screenId === 'profileScreen') {
+        document.querySelector('.menu-item:nth-child(2)')?.classList.add('active');
+    } else if (screenId === 'settingsScreen') {
+        document.querySelector('.menu-item:nth-child(3)')?.classList.add('active');
+    }
+}
+
+// Переключение вкладок чатов
+function switchChatTab(tabName) {
+    console.log('Переключение на вкладку:', tabName);
+    
+    // Обновляем активные вкладки
+    const tabs = document.querySelectorAll('.chat-tab');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Активируем выбранную вкладку
+    const activeTab = Array.from(tabs).find(tab => 
+        tab.textContent.includes(tabName)
+    );
+    if (activeTab) {
+        activeTab.classList.add('active');
+    }
+    
+    // Обновляем текст создания чата
+    const createChatText = document.getElementById('createChatText');
+    if (createChatText) {
+        createChatText.textContent = `Создать чат для ${tabName}`;
+    }
+}
+
+// Функции для модального окна
+function openCreateChatModal() {
+    console.log('Открытие модального окна создания чата');
+    const modal = document.getElementById('createChatModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeCreateChatModal() {
+    console.log('Закрытие модального окна');
+    const modal = document.getElementById('createChatModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function toggleOption(button) {
+    const parent = button.parentElement;
+    const buttons = parent.querySelectorAll('.option-button');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    button.classList.add('active');
+}
+
+function updateAgeRange() {
+    const minSlider = document.getElementById('minAgeSlider');
+    const maxSlider = document.getElementById('maxAgeSlider');
+    const minAgeValue = document.getElementById('minAgeValue');
+    const maxAgeValue = document.getElementById('maxAgeValue');
+    
+    if (minSlider && maxSlider && minAgeValue && maxAgeValue) {
+        minAgeValue.textContent = minSlider.value;
+        maxAgeValue.textContent = maxSlider.value;
+    }
+}
+
+// Базовые функции интерфейса
+function enableNotifications() {
+    console.log('Включение уведомлений');
+    alert('Уведомления включены!');
+}
+
+function createChat() {
+    console.log('Создание чата');
+    closeCreateChatModal();
+    showScreen('waitingScreen');
+}
+
+function cancelWaiting() {
+    console.log('Отмена поиска');
+    showScreen('chatsScreen');
+}
+
+function shareApp() {
+    console.log('Поделиться приложением');
+    alert('Функция "Поделиться приложением"');
+}
+
+function openMyChats() {
+    console.log('Открытие моих чатов');
+    alert('Функция "Мои чаты"');
+}
+
+function inviteFriends() {
+    console.log('Приглашение друзей');
+    alert('Функция "Пригласить друзей"');
+}
+
+function openNotificationsSettings() {
+    console.log('Настройки уведомлений');
+    alert('Настройки уведомлений');
+}
+
+function openPrivacySettings() {
+    console.log('Настройки приватности');
+    alert('Настройки приватности');
+}
+
+function addToFavorites() {
+    console.log('Добавить в избранное');
+    alert('Добавлено в избранное');
+}
+
+function openAppInfo() {
+    console.log('О приложении');
+    alert('О приложении');
+}
+
+function support() {
+    console.log('Поддержка');
+    alert('Связь с поддержкой');
+}
+
+function addToFriends() {
+    console.log('Добавить в друзья');
+    alert('Запрос на добавление в друзья отправлен');
+}
+
+function reportUser() {
+    console.log('Пожаловаться на пользователя');
+    alert('Жалоба отправлена');
+}
+
+function handleTyping() {
+    // Заглушка для индикатора набора текста
+    console.log('Пользователь печатает...');
+}
+
+function sendMessage() {
+    const input = document.getElementById('messageInput');
+    if (input && input.value.trim()) {
+        console.log('Отправка сообщения:', input.value);
+        alert('Сообщение отправлено: ' + input.value);
+        input.value = '';
+    }
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Приложение инициализировано');
+    // Убедимся что показан правильный экран
+    showScreen('chatsScreen');
+    switchChatTab('Общение');
+    
+    // Инициализация слайдеров возраста
+    updateAgeRange();
+});
