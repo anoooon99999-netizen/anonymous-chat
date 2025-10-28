@@ -287,5 +287,64 @@
     </div>
 
     <script src="app.js"></script>
+    <!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анонимный Чат</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Анонимный Чат</h1>
+            <p>Выберите чат для общения</p>
+        </header>
+
+        <div class="chats-grid" id="chats-container">
+            <!-- Чаты будут загружены через JavaScript -->
+        </div>
+
+        <footer>
+            <p>Анонимное общение без регистрации</p>
+        </footer>
+    </div>
+
+    <script>
+        // Функция для загрузки и отображения чатов
+        function loadChats() {
+            fetch('/api/chats')
+                .then(response => response.json())
+                .then(chats => {
+                    const container = document.getElementById('chats-container');
+                    container.innerHTML = '';
+                    
+                    chats.forEach(chat => {
+                        const chatCard = document.createElement('div');
+                        chatCard.className = 'chat-card';
+                        chatCard.innerHTML = `
+                            <div class="chat-info">
+                                <h3>${chat.name}</h3>
+                                <p>${chat.userCount} участников</p>
+                            </div>
+                            <a href="/chat/${chat.id}" class="join-btn">
+                                Присоединиться
+                            </a>
+                        `;
+                        container.appendChild(chatCard);
+                    });
+                })
+                .catch(error => console.log('Ошибка загрузки чатов:', error));
+        }
+
+        // Автообновление каждые 10 секунд
+        setInterval(loadChats, 10000);
+
+        // Загружаем чаты при старте
+        loadChats();
+    </script>
+</body>
+</html>
 </body>
 </html>
