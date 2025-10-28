@@ -1,490 +1,595 @@
-// ===== ПЕРЕМЕННЫЕ ДЛЯ ЧАТОВ =====
-let activeChats = [];
-let chatIdCounter = 1;
-let currentSocket = null;
+// Конфигурация
+const API_URL = window.location.origin;
+const SOCKET_URL = window.location.origin;
 
-// ===== БАЗОВЫЕ ФУНКЦИИ ИНТЕРФЕЙСА =====
+// Глобальные переменные
+let allChats = [];
+let userStats = {
+    createdChats: 0,
+    sentMessages: 0,
+    friends: 0,
+    daysActive: 1,
+    reputation: 150
+};
+let vkUser = null;
+let currentChat = null;
+let socket = null;
+let isVK = false;
+let currentTheme = 'Общение';
+let typingTimer = null;
+let onlineUsers = new Set();
 
-// Переключение между экранами
-function showScreen(screenId) {
-    console.log('Переключение на экран:', screenId);
-    const screens = document.querySelectorAll('.screen');
-    screens.forEach(screen => {
-        screen.classList.remove('active');
-    });
-    
-    const targetScreen = document.getElementById(screenId);
-    if (targetScreen) {
-        targetScreen.classList.add('active');
+// Инициализация приложения
+async function initApp() {
+    try {
+        if (typeof vkBridge !== 'undefined') {
+            await vkBridge.send('VKWebAppInit');
+            isVK = true;
+            const userInfo = await vkBridge.send('VKWebAppGetUserInfo');
+            vkUser = userInfo;
+            updateUserInterface(userInfo);
+            showNotification('Добро пожаловать, ' + userInfo.first_name + '!');
+        } else {
+            throw new Error('VK Bridge not available');
+        }
+    } catch (error) {
+        console.log('Приложение запущено вне VK:', error.message);
+        isVK = false;
+        vkUser = { 
+            id: 'test_user_' + Date.now(), 
+            first_name: 'Тест', 
+            last_name: 'Пользователь' 
+        };
+        updateUserInterface(vkUser);
+        showNotification('Режим тестирования - можно создавать чаты');
     }
-    
-    // Обновляем активное меню
-    const menuItems = document.querySelectorAll('.menu-item');
-    menuItems.forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    if (screenId === 'chatsScreen') {
-        document.querySelector('.menu-item:nth-child(1)')?.classList.add('active');
-    } else if (screenId === 'profileScreen') {
-        document.querySelector('.menu-item:nth-child(2)')?.classList.add('active');
-    } else if (screenId === 'settingsScreen') {
-        document.querySelector('.menu-item:nth-child(3)')?.classList.add('active');
-    }
+
+    initSocket();
+    await loadAndRenderChats();
+    loadUserStats();
+    updateProfileStats();
+    setupEventListeners();
+}
+
+function updateUserInterface(userInfo) {
+    document.getElementById('vkUserName').textContent = userInfo.first_name + ' ' + userInfo.last_name;
+    document.getElementById('vkUserInfo').style.display = 'flex';
+    document.getElementById('profileName').textContent = userInfo.first_name + ' ' + userInfo.last_name;
+    document.getElementById('currentAvatar').textContent = userInfo.first_name.charAt(0);
 }
 
 // Переключение вкладок чатов
-function switchChatTab(tabName) {
-    console.log('Переключение на вкладку:', tabName);
+function switchChatTab(theme) {
+    currentTheme = theme;
     
-    const tabs = document.querySelectorAll('.chat-tab');
-    tabs.forEach(tab => {
-        tab.classList.remove('active');
+    document.querySelectorAll('.chat-tab').forEach(tab => tab.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    document.getElementById('createChatText').textContent = 'Создать чат для ' + theme;
+    renderChatsList();
+}
+
+function initSocket() {
+    try {
+        socket = io(SOCKET_URL);
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            if (currentChat) {
+                socket.emit('join_chat', { chatId: currentChat.id, userId: vkUser?.id });
+            }
+        });
+        
+        socket.on('new_message', (message) => {
+            if (currentChat && message.chat_id === currentChat.id) {
+                addMessageToChat(message);
+            }
+        });
+        
+        socket.on('user_joined', (data) => {
+            if (currentChat && data.chatId === currentChat.id) {
+                onlineUsers.add(data.userId);
+                updateOnlineCount();
+                showNotification('👤 Собеседник присоединился к чату');
+            }
+        });
+        
+        socket.on('user_left', (data) => {
+            if (currentChat && data.chatId === currentChat.id) {
+                onlineUsers.delete(data.userId);
+                updateOnlineCount();
+                showNotification('👤 Собеседник покинул чат');
+            }
+        });
+        
+        socket.on('chat_activated', (data) => {
+            if (currentChat && data.chatId === currentChat.id) {
+                showNotification('🎉 Чат активирован! Начинайте общение');
+            }
+        });
+        
+        socket.on('typing_start', (data) => {
+            if (currentChat && data.chatId === currentChat.id && data.userId !== vkUser?.id) {
+                document.getElementById('typingIndicator').style.display = 'inline';
+            }
+        });
+        
+        socket.on('typing_stop', (data) => {
+            if (currentChat && data.chatId === currentChat.id) {
+                document.getElementById('typingIndicator').style.display = 'none';
+            }
+        });
+        
+        socket.on('online_users', (data) => {
+            if (currentChat && data.chatId === currentChat.id) {
+                onlineUsers = new Set(data.users);
+                updateOnlineCount();
+            }
+        });
+        
+        socket.on('error', (data) => {
+            showNotification('❌ ' + data.message);
+        });
+        
+    } catch (error) {
+        console.error('Socket error:', error);
+    }
+}
+
+function updateOnlineCount() {
+    const count = onlineUsers.size;
+    document.getElementById('onlineCount').textContent = count + ' участников онлайн';
+}
+
+function handleTyping() {
+    if (!currentChat || !socket) return;
+    
+    socket.emit('typing_start', { 
+        chatId: currentChat.id, 
+        userId: vkUser?.id 
     });
     
-    const activeTab = Array.from(tabs).find(tab => 
-        tab.textContent.includes(tabName)
-    );
-    if (activeTab) {
-        activeTab.classList.add('active');
-    }
-    
-    const createChatText = document.getElementById('createChatText');
-    if (createChatText) {
-        createChatText.textContent = `Создать чат для ${tabName}`;
-    }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+        socket.emit('typing_stop', { 
+            chatId: currentChat.id, 
+            userId: vkUser?.id 
+        });
+    }, 1000);
 }
 
-// Функции для модального окна
-function openCreateChatModal() {
-    console.log('Открытие модального окна создания чата');
-    const modal = document.getElementById('createChatModal');
-    if (modal) {
-        modal.style.display = 'flex';
-    }
-}
-
-function closeCreateChatModal() {
-    console.log('Закрытие модального окна');
-    const modal = document.getElementById('createChatModal');
-    if (modal) {
-        modal.style.display = 'none';
+async function loadChatsFromServer() {
+    try {
+        const response = await fetch(API_URL + '/api/chats');
+        const chats = await response.json();
+        return chats.map(chat => ({
+            id: chat.id,
+            gender: chat.user_gender + ', ' + chat.user_age,
+            lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
+            theme: chat.theme,
+            participants_count: chat.participants_count,
+            timestamp: new Date(chat.created_at).getTime()
+        }));
+    } catch (error) {
+        console.error('Ошибка загрузки чатов:', error);
+        showNotification('Ошибка загрузки чатов');
+        return [];
     }
 }
 
-function toggleOption(button) {
-    const parent = button.parentElement;
-    const buttons = parent.querySelectorAll('.option-button');
-    buttons.forEach(btn => btn.classList.remove('active'));
-    button.classList.add('active');
+async function loadAndRenderChats() {
+    const chats = await loadChatsFromServer();
+    allChats = chats;
+    renderChatsList();
 }
 
-function updateAgeRange() {
-    const minSlider = document.getElementById('minAgeSlider');
-    const maxSlider = document.getElementById('maxAgeSlider');
-    const minAgeValue = document.getElementById('minAgeValue');
-    const maxAgeValue = document.getElementById('maxAgeValue');
-    
-    if (minSlider && maxSlider && minAgeValue && maxAgeValue) {
-        minAgeValue.textContent = minSlider.value;
-        maxAgeValue.textContent = maxSlider.value;
-    }
-}
+function renderChatsList() {
+    const container = document.getElementById('chatsContainer');
+    container.innerHTML = '';
 
-// Базовые функции интерфейса
-function enableNotifications() {
-    console.log('Включение уведомлений');
-    alert('Уведомления включены!');
-}
+    const filteredChats = allChats.filter(chat => chat.theme === currentTheme);
 
-function createChat() {
-    console.log('Создание чата с параметрами поиска');
-    
-    const myGender = document.querySelector('#myGenderOptions .option-button.active')?.textContent || 'Мужской';
-    const partnerGender = document.querySelector('#partnerGenderOptions .option-button.active')?.textContent || 'Любой';
-    const myAge = document.getElementById('myAge')?.value || '25';
-    const minAge = document.getElementById('minAgeSlider')?.value || '18';
-    const maxAge = document.getElementById('maxAgeSlider')?.value || '35';
-    
-    const activeTab = document.querySelector('.chat-tab.active');
-    const chatType = activeTab ? activeTab.textContent.replace(/[^\w\s]/g, '').trim() : 'Общение';
-    
-    console.log('Параметры поиска:', { chatType, myGender, partnerGender, myAge, minAge, maxAge });
-    
-    closeCreateChatModal();
-    startWaiting(chatType);
-}
-
-function cancelWaiting() {
-    console.log('Отмена поиска собеседника');
-    
-    if (waitingTimer) {
-        clearInterval(waitingTimer);
-        waitingTimer = null;
-    }
-    
-    showScreen('chatsScreen');
-}
-
-// ===== ФУНКЦИИ ДЛЯ РЕАЛЬНОГО ЧАТА =====
-
-function addChatToHistory(chatType, partnerInfo) {
-    const chatId = 'chat_' + chatIdCounter++;
-    const newChat = {
-        id: chatId,
-        type: chatType,
-        partner: partnerInfo || {
-            name: 'Анонимный пользователь',
-            avatar: '👤'
-        },
-        lastMessage: 'Чат начат',
-        timestamp: new Date(),
-        unread: 0,
-        online: true,
-        messages: []
-    };
-    
-    activeChats.unshift(newChat);
-    updateChatsList();
-    return chatId;
-}
-
-function updateChatsList() {
-    const chatsContainer = document.getElementById('chatsContainer');
-    if (!chatsContainer) return;
-    
-    if (activeChats.length === 0) {
-        chatsContainer.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon">💬</div>
-                <div class="empty-title">Нет активных чатов</div>
-                <div class="empty-text">Создайте первый чат чтобы начать общение</div>
+    if (filteredChats.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                <div style="font-size: 48px; margin-bottom: 16px;">💬</div>
+                <div>Чатов в разделе "${currentTheme}" пока нет</div>
+                <div style="font-size: 14px; margin-top: 8px;">Создайте первый чат!</div>
             </div>
         `;
         return;
     }
     
-    chatsContainer.innerHTML = activeChats.map(chat => `
-        <div class="chat-card" onclick="openChat('${chat.id}')">
-            <div class="chat-avatar">${chat.partner.avatar}</div>
-            <div class="chat-info">
-                <div class="chat-header">
-                    <div class="chat-name">${chat.partner.name}</div>
-                    <div class="chat-time">${formatTime(chat.timestamp)}</div>
+    filteredChats.forEach(chat => {
+        const chatElement = document.createElement('div');
+        chatElement.className = 'user-card';
+        chatElement.onclick = () => startChat(chat);
+        
+        chatElement.innerHTML = `
+            <div class="user-info">
+                <div class="info-row">
+                    <span class="info-label">Пол:</span>
+                    <span class="info-value">${chat.gender}</span>
                 </div>
-                <div class="chat-preview">
-                    <span class="chat-last-message">${chat.lastMessage}</span>
-                    ${chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : ''}
-                </div>
-                <div class="chat-meta">
-                    <span class="chat-type">${getChatTypeIcon(chat.type)} ${chat.type}</span>
-                    <span class="online-status ${chat.online ? 'online' : 'offline'}">
-                        ${chat.online ? '🟢 онлайн' : '⚫ офлайн'}
-                    </span>
+                <div class="info-row">
+                    <span class="info-label">Ищу:</span>
+                    <span class="info-value">${chat.lookingFor}</span>
                 </div>
             </div>
-        </div>
-    `).join('');
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="theme-tag">${chat.theme}</div>
+                <div style="font-size: 12px; color: var(--text-secondary);">
+                    ${chat.participants_count}/2 • ${getTimeAgo(chat.timestamp)}
+                </div>
+            </div>
+        `;
+        container.appendChild(chatElement);
+    });
 }
 
-function formatTime(date) {
-    const now = new Date();
-    const diff = now - new Date(date);
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
+function openCreateChatModal() {
+    document.getElementById('modalTitle').textContent = 'Создать чат для ' + currentTheme;
+    document.getElementById('createChatModal').style.display = 'block';
+}
+
+function updateAgeRange() {
+    const minSlider = document.getElementById('minAgeSlider');
+    const maxSlider = document.getElementById('maxAgeSlider');
     
-    if (minutes < 1) return 'только что';
-    if (minutes < 60) return `${minutes} мин назад`;
-    if (hours < 24) return `${hours} ч назад`;
+    let minAge = parseInt(minSlider.value);
+    let maxAge = parseInt(maxSlider.value);
     
-    return new Date(date).toLocaleDateString('ru-RU');
-}
-
-function getChatTypeIcon(type) {
-    const icons = {
-        'Общение': '💬',
-        'Флирт': '😊',
-        'Роль': '🎭'
-    };
-    return icons[type] || '💬';
-}
-
-function openChat(chatId) {
-    const chat = activeChats.find(c => c.id === chatId);
-    if (chat) {
-        console.log('Открытие чата:', chatId);
-        showScreen('chatRoomScreen');
-        
-        const chatTitle = document.getElementById('chatRoomTitle');
-        if (chatTitle) {
-            chatTitle.textContent = `Чат с ${chat.partner.name}`;
-        }
-        
-        loadChatHistory(chatId);
-        markAsRead(chatId);
-        
-        // Инициализация WebSocket для реального чата
-        initChatConnection(chatId);
+    if (minAge > maxAge) {
+        minAge = maxAge;
+        minSlider.value = minAge;
     }
+    
+    document.getElementById('minAgeValue').textContent = minAge;
+    document.getElementById('maxAgeValue').textContent = maxAge;
+    
+    document.getElementById('minAge').value = minAge;
+    document.getElementById('maxAge').value = maxAge;
 }
 
-function loadChatHistory(chatId) {
-    const messagesContainer = document.getElementById('messagesContainer');
-    if (!messagesContainer) return;
+async function createChat() {
+    console.log('Создание чата...');
     
-    messagesContainer.innerHTML = '';
-    
-    const chat = activeChats.find(c => c.id === chatId);
-    if (chat && chat.messages.length > 0) {
-        chat.messages.forEach(msg => {
-            addMessageToDisplay(msg.text, msg.type, msg.timestamp);
+    const myGender = document.querySelector('#myGenderOptions .option-button.active').textContent;
+    const myAge = document.getElementById('myAge').value;
+    const partnerGender = document.querySelector('#partnerGenderOptions .option-button.active').textContent;
+    const minAge = document.getElementById('minAge').value;
+    const maxAge = document.getElementById('maxAge').value;
+
+    if (!myAge || myAge < 18 || myAge > 80) {
+        showNotification('Пожалуйста, введите корректный возраст (18-80)');
+        return;
+    }
+
+    if (!minAge || !maxAge || minAge >= maxAge || minAge < 18 || maxAge > 80) {
+        showNotification('Пожалуйста, введите корректный возрастной диапазон (18-80)');
+        return;
+    }
+
+    const chatData = {
+        user_id: vkUser?.id || 'anonymous',
+        user_gender: myGender,
+        user_age: parseInt(myAge),
+        partner_gender: partnerGender,
+        min_age: parseInt(minAge),
+        max_age: parseInt(maxAge),
+        theme: currentTheme
+    };
+
+    console.log('Отправка данных:', chatData);
+
+    try {
+        const response = await fetch(API_URL + '/api/chats', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(chatData)
         });
-    } else {
-        // Пустой чат - нет тестовых сообщений
-        addMessageToDisplay('Чат начат. Напишите первое сообщение!', 'system', new Date());
-    }
-}
-
-function addMessageToDisplay(text, type = 'received', timestamp = new Date()) {
-    const messagesContainer = document.getElementById('messagesContainer');
-    if (!messagesContainer) return;
-    
-    const messageElement = document.createElement('div');
-    messageElement.className = `message ${type}`;
-    messageElement.innerHTML = `
-        <div class="message-avatar">${type === 'received' ? '👤' : '😊'}</div>
-        <div class="message-content">
-            <div class="message-text">${text}</div>
-            <div class="message-time">${formatTime(timestamp)}</div>
-        </div>
-    `;
-    
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
-
-function markAsRead(chatId) {
-    const chat = activeChats.find(c => c.id === chatId);
-    if (chat) {
-        chat.unread = 0;
-        updateChatsList();
-    }
-}
-
-function sendMessage() {
-    const input = document.getElementById('messageInput');
-    if (input && input.value.trim()) {
-        const messageText = input.value.trim();
-        console.log('Отправка сообщения:', messageText);
         
-        // Добавляем сообщение в интерфейс
-        addMessageToDisplay(messageText, 'sent', new Date());
-        
-        // Здесь будет отправка через WebSocket
-        if (currentSocket) {
-            currentSocket.emit('send_message', {
-                text: messageText,
-                chatId: window.currentChatId
-            });
+        if (response.ok) {
+            const result = await response.json();
+            console.log('Чат создан:', result);
+            
+            const newChat = {
+                id: result.id,
+                gender: myGender + ', ' + myAge,
+                lookingFor: partnerGender + ', ' + minAge + '-' + maxAge,
+                theme: currentTheme,
+                participants_count: 1,
+                timestamp: Date.now()
+            };
+            allChats.unshift(newChat);
+            renderChatsList();
+            userStats.createdChats++;
+            saveUserStats();
+            updateProfileStats();
+            showNotification('✅ Чат успешно создан! Ожидаем собеседника...');
+            closeCreateChatModal();
+            
+            setTimeout(() => startChat(newChat), 500);
+        } else {
+            throw new Error('Ошибка сервера: ' + response.status);
         }
-        
-        // Обновляем последнее сообщение в списке чатов
-        if (window.currentChatId) {
-            const chat = activeChats.find(c => c.id === window.currentChatId);
-            if (chat) {
-                chat.lastMessage = messageText;
-                chat.timestamp = new Date();
-                chat.messages.push({
-                    text: messageText,
-                    type: 'sent',
-                    timestamp: new Date()
-                });
-                updateChatsList();
-            }
-        }
-        
-        input.value = '';
+    } catch (error) {
+        console.error('Ошибка создания чата:', error);
+        showNotification('❌ Ошибка создания чата: ' + error.message);
     }
 }
 
-function handleTyping() {
-    // Индикатор набора текста можно добавить позже
-}
-
-// ===== ФУНКЦИИ ДЛЯ ЭКРАНА ОЖИДАНИЯ =====
-
-function startWaiting(chatType = 'Общение') {
-    console.log('Начало поиска собеседника для:', chatType);
-    showScreen('waitingScreen');
-    startWaitingTimer();
-    updateOnlineUsers();
-    
-    window.currentChatType = chatType;
-    simulateSearch();
-}
-
-function startWaitingTimer() {
-    waitingSeconds = 0;
-    updateWaitingTime();
-    
-    if (waitingTimer) {
-        clearInterval(waitingTimer);
-    }
-    
-    waitingTimer = setInterval(() => {
-        waitingSeconds++;
-        updateWaitingTime();
-        
-        if (waitingSeconds % 10 === 0) {
-            updateOnlineUsers();
-        }
-        
-        // Реальный поиск - можно настроить время
-        if (waitingSeconds === 20) {
-            autoFindPartner();
-        }
-    }, 1000);
-}
-
-function updateWaitingTime() {
-    const minutes = Math.floor(waitingSeconds / 60);
-    const seconds = waitingSeconds % 60;
-    const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    
-    const waitingTimeElement = document.getElementById('waitingTime');
-    if (waitingTimeElement) {
-        waitingTimeElement.textContent = timeString;
-    }
-}
-
-function updateOnlineUsers() {
-    const onlineCount = Math.floor(Math.random() * 1000) + 1500;
-    const onlineUsersElement = document.getElementById('onlineUsersCount');
-    if (onlineUsersElement) {
-        onlineUsersElement.textContent = onlineCount.toLocaleString();
-    }
-}
-
-function simulateSearch() {
-    const waitingText = document.getElementById('waitingText');
-    const steps = [
-        "Ищем собеседника по вашим критериям...",
-        "Проверяем доступных пользователей...", 
-        "Подбираем оптимальную пару...",
-        "Анализируем интересы...",
-        "Почти нашли подходящего собеседника..."
-    ];
-    
-    let currentStep = 0;
-    
-    const searchInterval = setInterval(() => {
-        if (waitingText) {
-            waitingText.textContent = steps[currentStep];
-            currentStep = (currentStep + 1) % steps.length;
-        }
-    }, 3000);
-    
-    setTimeout(() => {
-        clearInterval(searchInterval);
-    }, 19000);
-}
-
-function autoFindPartner() {
-    console.log('Собеседник найден!');
-    
-    if (waitingTimer) {
-        clearInterval(waitingTimer);
-        waitingTimer = null;
-    }
-    
-    const partnerInfo = generatePartnerInfo();
-    const chatId = addChatToHistory(window.currentChatType, partnerInfo);
-    window.currentChatId = chatId;
-    
-    showPartnerFoundNotification();
-}
-
-function generatePartnerInfo() {
-    const genders = ['Мужской', 'Женский'];
-    const names = {
-        'Мужской': ['Алексей', 'Дмитрий', 'Максим', 'Иван', 'Сергей'],
-        'Женский': ['Анна', 'Мария', 'Елена', 'Ольга', 'Наталья']
-    };
-    
-    const gender = genders[Math.floor(Math.random() * genders.length)];
-    const name = names[gender][Math.floor(Math.random() * names[gender].length)];
-    
-    return {
-        name: name,
-        gender: gender,
-        avatar: gender === 'Мужской' ? '👨' : '👩'
-    };
-}
-
-function showPartnerFoundNotification() {
-    const waitingContent = document.querySelector('.waiting-content');
-    if (!waitingContent) return;
-    
-    const notification = document.createElement('div');
-    notification.className = 'partner-found-notification';
-    notification.innerHTML = `
-        <div class="found-animation">🎉</div>
-        <div class="found-title">Собеседник найден!</div>
-        <div class="found-subtitle">Переходим в чат...</div>
-        <button class="start-chat-button" onclick="enterChatRoom()">Начать общение</button>
-    `;
-    
-    waitingContent.innerHTML = '';
-    waitingContent.appendChild(notification);
-    updateChatsList();
-    
-    setTimeout(enterChatRoom, 3000);
-}
-
-function enterChatRoom() {
-    console.log('Вход в чат комнату');
-    
-    if (waitingTimer) {
-        clearInterval(waitingTimer);
-        waitingTimer = null;
-    }
-    
+async function startChat(chat) {
+    currentChat = chat;
+    document.getElementById('chatRoomTitle').textContent = 'Чат: ' + chat.theme;
     showScreen('chatRoomScreen');
     
-    if (window.currentChatId) {
-        loadChatHistory(window.currentChatId);
+    document.body.classList.add('chat-room-active');
+    
+    if (socket) {
+        socket.emit('join_chat', { chatId: chat.id, userId: vkUser?.id });
+    }
+    
+    await loadMessages(chat.id);
+    
+    setTimeout(() => {
+        const input = document.getElementById('messageInput');
+        if (input) input.focus();
+    }, 300);
+}
+
+async function loadMessages(chatId) {
+    try {
+        const response = await fetch(API_URL + '/api/messages?chat_id=' + chatId);
+        const messages = await response.json();
+        const container = document.getElementById('messagesContainer');
+        container.innerHTML = '';
         
-        const chat = activeChats.find(c => c.id === window.currentChatId);
-        if (chat) {
-            const chatTitle = document.getElementById('chatRoomTitle');
-            if (chatTitle) {
-                chatTitle.textContent = `Чат с ${chat.partner.name}`;
-            }
+        if (messages.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                    <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
+                    <div>Пока нет сообщений</div>
+                    <div style="font-size: 14px; margin-top: 8px;">Начните общение первым!</div>
+                </div>
+            `;
+            return;
         }
+        
+        messages.forEach(msg => {
+            addMessageToChat(msg);
+        });
+        
+        container.scrollTop = container.scrollHeight;
+    } catch (error) {
+        console.error('Ошибка загрузки сообщений:', error);
     }
 }
 
-// ===== WEB SOCKET ИНИЦИАЛИЗАЦИЯ =====
-function initChatConnection(chatId) {
-    // Здесь будет реальное подключение к WebSocket серверу
-    console.log('Инициализация соединения для чата:', chatId);
+function addMessageToChat(message) {
+    const container = document.getElementById('messagesContainer');
     
-    // Заглушка для реального подключения
-    currentSocket = {
-        emit: (event, data) => {
-            console.log('WebSocket emit:', event, data);
-            // В реальном приложении здесь будет отправка на сервер
-        }
-    };
+    if (container.innerHTML.includes('Пока нет сообщений')) {
+        container.innerHTML = '';
+    }
+    
+    const messageElement = document.createElement('div');
+    const isMyMessage = message.user_id === (vkUser?.id || 'anonymous');
+    messageElement.className = 'message ' + (isMyMessage ? 'message-my' : 'message-their');
+    
+    let messageContent = `
+        <div class="message-content">${message.message}</div>
+        <div class="message-time">${new Date(message.created_at).toLocaleTimeString()}</div>
+    `;
+    
+    if (!isMyMessage) {
+        messageContent = `
+            <div class="message-sender">${message.user_name || 'Аноним'}</div>
+            ${messageContent}
+        `;
+    }
+    
+    messageElement.innerHTML = messageContent;
+    container.appendChild(messageElement);
+    container.scrollTop = container.scrollHeight;
 }
 
-// ===== ИНИЦИАЛИЗАЦИЯ =====
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Приложение инициализировано');
-    showScreen('chatsScreen');
-    switchChatTab('Общение');
-    updateAgeRange();
-    updateChatsList(); // Инициализация пустого списка чатов
-});
+async function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const text = input.value.trim();
+    
+    if (!text || !currentChat) return;
 
-// Остальные функции (shareApp, openMyChats, etc.) остаются без изменений
+    try {
+        const response = await fetch(API_URL + '/api/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                },
+            body: JSON.stringify({
+                chat_id: currentChat.id,
+                user_id: vkUser?.id || 'anonymous',
+                message: text,
+                user_name: vkUser ? vkUser.first_name + ' ' + vkUser.last_name : 'Аноним'
+            })
+        });
+        
+        if (response.ok) {
+            input.value = '';
+            userStats.sentMessages++;
+            saveUserStats();
+            updateProfileStats();
+            
+            if (socket) {
+                socket.emit('typing_stop', { 
+                    chatId: currentChat.id, 
+                    userId: vkUser?.id 
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка отправки сообщения:', error);
+        showNotification('Ошибка отправки сообщения');
+    }
+}
+
+function closeCreateChatModal() {
+    document.getElementById('createChatModal').style.display = 'none';
+}
+
+function toggleOption(element) {
+    const parent = element.parentElement;
+    parent.querySelectorAll('.option-button').forEach(btn => btn.classList.remove('active'));
+    element.classList.add('active');
+}
+
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+    
+    if (screenId !== 'chatRoomScreen') {
+        document.body.classList.remove('chat-room-active');
+    } else {
+        document.body.classList.add('chat-room-active');
+    }
+    
+    document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+    const menuMap = {
+        'chatsScreen': 0,
+        'profileScreen': 1,
+        'settingsScreen': 2
+    };
+    
+    if (menuMap[screenId] !== undefined) {
+        const menuItems = document.querySelectorAll('.menu-item');
+        menuItems[menuMap[screenId]].classList.add('active');
+    }
+    
+    if (screenId !== 'chatRoomScreen' && currentChat && socket) {
+        socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
+        document.getElementById('typingIndicator').style.display = 'none';
+    }
+}
+
+function loadUserStats() {
+    const savedStats = localStorage.getItem('user_stats');
+    if (savedStats) {
+        userStats = JSON.parse(savedStats);
+    }
+    
+    const firstVisit = localStorage.getItem('first_visit');
+    if (!firstVisit) {
+        localStorage.setItem('first_visit', Date.now());
+    } else {
+        const days = Math.floor((Date.now() - parseInt(firstVisit)) / (1000 * 60 * 60 * 24));
+        userStats.daysActive = Math.max(1, days);
+    }
+}
+
+function saveUserStats() {
+    localStorage.setItem('user_stats', JSON.stringify(userStats));
+}
+
+function updateProfileStats() {
+    document.getElementById('chatsCount').textContent = userStats.createdChats;
+    document.getElementById('messagesCount').textContent = userStats.sentMessages;
+    document.getElementById('friendsCount').textContent = userStats.friends;
+    document.getElementById('daysCount').textContent = userStats.daysActive;
+    document.getElementById('profileReputation').textContent = userStats.reputation;
+}
+
+function getTimeAgo(timestamp) {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    if (minutes < 1) return 'только что';
+    if (minutes < 60) return minutes + ' мин назад';
+    if (hours < 24) return hours + ' ч назад';
+    return Math.floor(diff / 86400000) + ' дн назад';
+}
+
+function showNotification(message) {
+    const existingSnackbars = document.querySelectorAll('.snackbar');
+    existingSnackbars.forEach(snackbar => snackbar.remove());
+    
+    const snackbar = document.createElement('div');
+    snackbar.className = 'snackbar';
+    snackbar.textContent = message;
+    document.body.appendChild(snackbar);
+    
+    setTimeout(() => {
+        snackbar.remove();
+    }, 3000);
+}
+
+function setupEventListeners() {
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) this.style.display = 'none';
+        });
+    });
+
+    document.getElementById('messageInput')?.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+}
+
+// Функции для чата
+function addToFriends() {
+    showNotification('✅ Пользователь добавлен в друзья!');
+    userStats.friends++;
+    saveUserStats();
+    updateProfileStats();
+}
+
+function reportUser() {
+    showNotification('⚠️ Жалоба отправлена модераторам');
+}
+
+// Простые функции для кнопок
+function enableNotifications() {
+    showNotification('🔔 Уведомления включены!');
+}
+
+function openMyChats() {
+    const myChatsCount = allChats.filter(chat => chat.userId === vkUser?.id).length;
+    if (myChatsCount > 0) {
+        showNotification(`У вас ${myChatsCount} активных чатов`);
+    } else {
+        showNotification('У вас пока нет активных чатов');
+    }
+}
+
+function shareApp() {
+    showNotification('Поделитесь приложением с друзьями!');
+}
+
+function inviteFriends() {
+    showNotification('Пригласите друзей в приложение!');
+}
+
+function addToFavorites() {
+    showNotification('✅ Добавлено в избранное!');
+}
+
+function support() {
+    showNotification('Напишите нам в сообщения группы VK');
+}
+
+function openNotificationsSettings() {
+    showNotification('Настройки уведомлений в разработке');
+}
+
+function openPrivacySettings() {
+    showNotification('Настройки приватности в разработке');
+}
+
+function openAppInfo() {
+    showNotification('Анонимный чат v2.0 для VK');
+}
+
+// Запуск приложения
+document.addEventListener('DOMContentLoaded', initApp);
