@@ -223,3 +223,80 @@ setInterval(() => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const path = require('path');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
+
+// Хранилище чатов
+const chats = [
+    { id: 1, name: "Общий чат", userCount: 5 },
+    { id: 2, name: "Флудилка", userCount: 3 },
+    { id: 3, name: "Техподдержка", userCount: 2 },
+    { id: 4, name: "Игры", userCount: 7 },
+    { id: 5, name: "Музыка", userCount: 4 }
+];
+
+const messages = {};
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+
+// Главная страница
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Страница чата
+app.get('/chat/:id', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'chat.html'));
+});
+
+// ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ДЛЯ АВТООБНОВЛЕНИЯ
+app.get('/api/chats', (req, res) => {
+    res.json(chats);
+});
+
+// WebSocket соединения
+io.on('connection', (socket) => {
+    console.log('Новый пользователь подключен');
+
+    socket.on('join-chat', (data) => {
+        socket.join(`chat-${data.chatId}`);
+        socket.to(`chat-${data.chatId}`).emit('user-joined', {
+            username: data.username
+        });
+    });
+
+    socket.on('send-message', (data) => {
+        const { chatId, username, message } = data;
+        
+        if (!messages[chatId]) {
+            messages[chatId] = [];
+        }
+
+        const messageData = {
+            username,
+            message,
+            timestamp: new Date().toLocaleTimeString()
+        };
+
+        messages[chatId].push(messageData);
+        
+        // Отправляем сообщение всем в чате
+        io.to(`chat-${chatId}`).emit('new-message', messageData);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Пользователь отключен');
+    });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Сервер запущен на порту ${PORT}`);
+});
