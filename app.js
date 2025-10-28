@@ -380,3 +380,250 @@ async function initMeg() {
         // Заглушка для браузера
     }
 }
+// ===== ПЕРЕМЕННЫЕ ДЛЯ ЧАТОВ =====
+let activeChats = [];
+let chatIdCounter = 1;
+
+// ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ЧАТАМИ =====
+
+function addChatToHistory(chatType, partnerInfo) {
+    const chatId = 'chat_' + chatIdCounter++;
+    const newChat = {
+        id: chatId,
+        type: chatType,
+        partner: partnerInfo || {
+            name: 'Анонимный пользователь',
+            gender: 'Не указан',
+            age: 'Не указан',
+            avatar: '👤'
+        },
+        lastMessage: 'Чат начат',
+        timestamp: new Date(),
+        unread: 0,
+        online: true
+    };
+    
+    activeChats.unshift(newChat); // Добавляем в начало
+    updateChatsList();
+    return chatId;
+}
+
+function updateChatsList() {
+    const chatsContainer = document.getElementById('chatsContainer');
+    if (!chatsContainer) return;
+    
+    if (activeChats.length === 0) {
+        chatsContainer.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">💬</div>
+                <div class="empty-title">Нет активных чатов</div>
+                <div class="empty-text">Создайте первый чат чтобы начать общение</div>
+            </div>
+        `;
+        return;
+    }
+    
+    chatsContainer.innerHTML = activeChats.map(chat => `
+        <div class="chat-card" onclick="openChat('${chat.id}')">
+            <div class="chat-avatar">${chat.partner.avatar}</div>
+            <div class="chat-info">
+                <div class="chat-header">
+                    <div class="chat-name">${chat.partner.name}</div>
+                    <div class="chat-time">${formatTime(chat.timestamp)}</div>
+                </div>
+                <div class="chat-preview">
+                    <span class="chat-last-message">${chat.lastMessage}</span>
+                    ${chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : ''}
+                </div>
+                <div class="chat-meta">
+                    <span class="chat-type">${getChatTypeIcon(chat.type)} ${chat.type}</span>
+                    <span class="online-status ${chat.online ? 'online' : 'offline'}">
+                        ${chat.online ? '🟢 онлайн' : '⚫ офлайн'}
+                    </span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function formatTime(date) {
+    const now = new Date();
+    const diff = now - new Date(date);
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return 'только что';
+    if (minutes < 60) return `${minutes} мин назад`;
+    if (hours < 24) return `${hours} ч назад`;
+    if (days === 1) return 'вчера';
+    if (days < 7) return `${days} дн назад`;
+    
+    return new Date(date).toLocaleDateString('ru-RU');
+}
+
+function getChatTypeIcon(type) {
+    const icons = {
+        'Общение': '💬',
+        'Флирт': '😊',
+        'Роль': '🎭'
+    };
+    return icons[type] || '💬';
+}
+
+function openChat(chatId) {
+    const chat = activeChats.find(c => c.id === chatId);
+    if (chat) {
+        console.log('Открытие чата:', chatId);
+        // Здесь можно добавить логику загрузки сообщений чата
+        showScreen('chatRoomScreen');
+        
+        // Обновляем заголовок чата
+        const chatTitle = document.getElementById('chatRoomTitle');
+        if (chatTitle) {
+            chatTitle.textContent = `Чат с ${chat.partner.name}`;
+        }
+        
+        // Загружаем историю сообщений
+        loadChatHistory(chatId);
+        
+        // Помечаем как прочитанное
+        markAsRead(chatId);
+    }
+}
+
+function loadChatHistory(chatId) {
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (!messagesContainer) return;
+    
+    // Очищаем контейнер
+    messagesContainer.innerHTML = '';
+    
+    // Добавляем приветственные сообщения
+    const welcomeMessages = [
+        {
+            type: 'received',
+            text: 'Привет! Рад познакомиться 😊',
+            time: new Date(Date.now() - 120000)
+        },
+        {
+            type: 'received', 
+            text: 'Как твои дела?',
+            time: new Date(Date.now() - 60000)
+        }
+    ];
+    
+    welcomeMessages.forEach(msg => {
+        addMessageToChat(msg.text, msg.type, msg.time);
+    });
+}
+
+function addMessageToChat(text, type = 'received', timestamp = new Date()) {
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (!messagesContainer) return;
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${type}`;
+    messageElement.innerHTML = `
+        <div class="message-avatar">${type === 'received' ? '👤' : '😊'}</div>
+        <div class="message-content">
+            <div class="message-text">${text}</div>
+            <div class="message-time">${formatTime(timestamp)}</div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function markAsRead(chatId) {
+    const chat = activeChats.find(c => c.id === chatId);
+    if (chat) {
+        chat.unread = 0;
+        updateChatsList();
+    }
+}
+
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ СОЗДАНИЯ ЧАТА =====
+
+function createChat() {
+    console.log('Создание чата с параметрами поиска');
+    
+    // Получаем выбранные параметры
+    const myGender = document.querySelector('#myGenderOptions .option-button.active')?.textContent || 'Мужской';
+    const partnerGender = document.querySelector('#partnerGenderOptions .option-button.active')?.textContent || 'Любой';
+    const myAge = document.getElementById('myAge')?.value || '25';
+    const minAge = document.getElementById('minAgeSlider')?.value || '18';
+    const maxAge = document.getElementById('maxAgeSlider')?.value || '35';
+    
+    // Определяем тип чата из активной вкладки
+    const activeTab = document.querySelector('.chat-tab.active');
+    const chatType = activeTab ? activeTab.textContent.replace(/[^\w\s]/g, '').trim() : 'Общение';
+    
+    console.log('Параметры поиска:', {
+        chatType,
+        myGender,
+        partnerGender, 
+        myAge,
+        minAge,
+        maxAge
+    });
+    
+    // Закрываем модальное окно
+    closeCreateChatModal();
+    
+    // Запускаем поиск собеседника
+    startWaiting(chatType);
+}
+
+// Обновляем функцию startWaiting чтобы принимать тип чата
+function startWaiting(chatType = 'Общение') {
+    console.log('Начало поиска собеседника для:', chatType);
+    showScreen('waitingScreen');
+    startWaitingTimer();
+    updateOnlineUsers();
+    
+    // Сохраняем тип чата для использования при создании
+    window.currentChatType = chatType;
+    
+    // Симуляция поиска собеседника
+    simulateSearch();
+}
+
+// Обновляем функцию autoFindPartner
+function autoFindPartner() {
+    console.log('Собеседник найден!');
+    
+    // Останавливаем таймер
+    if (waitingTimer) {
+        clearInterval(waitingTimer);
+        waitingTimer = null;
+    }
+    
+    // Создаем чат в истории
+    const partnerInfo = generatePartnerInfo();
+    const chatId = addChatToHistory(window.currentChatType, partnerInfo);
+    window.currentChatId = chatId;
+    
+    // Показываем уведомление о найденном собеседнике
+    showPartnerFoundNotification();
+}
+
+function generatePartnerInfo() {
+    const genders = ['Мужской', 'Женский'];
+    const names = {
+        'Мужской': ['Алексей', 'Дмитрий', 'Максим', 'Иван', 'Сергей'],
+        'Женский': ['Анна', 'Мария', 'Елена', 'Ольга', 'Наталья']
+    };
+    
+    const gender = genders[Math.floor(Math.random() * genders.length)];
+    const name = names[gender][Math.floor(Math.random() * names[gender].length)];
+    const age = Math.floor(Math.random() * 20) + 18; // 18-38 лет
+    
+    return {
+        name: name,
+        gender: gender,
+        age: age,
+        avatar: gender === 'Мужской' ? '👨' : '👩'
+    };
+}
