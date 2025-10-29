@@ -13,7 +13,8 @@ let userStats = {
 };
 let vkUser = null;
 let currentChat = null;
-let socket = null;
+// ⭐ УБИРАЕМ ОБЪЯВЛЕНИЕ socket - оно уже в index.html
+// let socket = null;
 let isVK = false;
 let currentTheme = 'Общение';
 let typingTimer = null;
@@ -71,6 +72,7 @@ function switchChatTab(theme) {
 
 function initSocket() {
     try {
+        // ⭐ ИСПОЛЬЗУЕМ ГЛОБАЛЬНУЮ ПЕРЕМЕННУЮ socket из index.html
         socket = io(SOCKET_URL);
         socket.on('connect', () => {
             console.log('Connected to server');
