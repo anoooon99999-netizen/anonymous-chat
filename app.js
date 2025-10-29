@@ -896,3 +896,220 @@ function deleteAccount() {
 
 // Запуск приложения
 document.addEventListener('DOMContentLoaded', initApp);
+/* Исправления для мобильного чата */
+
+/* Кнопки действий в чате - делаем компактнее и переносим */
+.chat-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.action-button {
+    background: var(--gradient);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    flex-shrink: 0;
+}
+
+/* Убираем текст в кнопках на маленьких экранах */
+@media (max-width: 380px) {
+    .action-button {
+        padding: 8px;
+        font-size: 0;
+    }
+    
+    .action-button::before {
+        content: attr(data-icon);
+        font-size: 14px;
+    }
+}
+
+/* Исправляем контейнер поля ввода */
+.message-input-container {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface);
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 25px;
+    display: flex;
+    gap: 10px;
+    width: 94%;
+    max-width: 360px;
+    justify-content: space-between;
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(20px);
+    z-index: 1001;
+}
+
+/* Поле ввода занимает больше места */
+#messageInput {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 20px;
+    font-size: 16px;
+    background: var(--background);
+    color: var(--text);
+    outline: none;
+    font-weight: 500;
+    min-width: 0; /* Важно для правильного сжатия */
+}
+
+/* Кнопка отправки */
+.send-button {
+    background: var(--gradient);
+    color: white;
+    border: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-size: 16px;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    flex-shrink: 0;
+}
+
+/* Улучшаем хедер чата для мобильных */
+.screen-header {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--surface);
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    box-shadow: var(--card-shadow);
+    margin: -10px -10px 20px -10px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.chat-info {
+    flex: 1;
+    text-align: left;
+    min-width: 0; /* Важно для правильного переноса текста */
+}
+
+/* Улучшаем отображение заголовка и онлайн-статуса */
+.chat-title {
+    font-weight: 800;
+    font-size: 16px;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-members {
+    font-size: 12px;
+    color: var(--success);
+    font-weight: 600;
+}
+
+/* Кнопка назад */
+.back-button {
+    font-size: 20px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--primary);
+    padding: 8px;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+/* Адаптивность для очень маленьких экранов */
+@media (max-width: 360px) {
+    .container {
+        padding: 12px;
+        padding-bottom: 100px;
+    }
+    
+    .message-input-container {
+        width: 92%;
+        bottom: 80px;
+        padding: 10px 14px;
+    }
+    
+    #messageInput {
+        padding: 10px 14px;
+        font-size: 14px;
+    }
+    
+    .send-button {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .screen-header {
+        padding: 12px;
+        gap: 8px;
+    }
+    
+    .chat-title {
+        font-size: 15px;
+    }
+    
+    .chat-members {
+        font-size: 11px;
+    }
+}
+
+/* Улучшаем контейнер сообщений */
+.messages-container {
+    padding: 10px 0;
+    margin-bottom: 70px;
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+}
+
+/* Улучшаем отображение пустого состояния */
+.messages-container:empty::before {
+    content: '';
+    display: block;
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+}
+
+/* Убираем лишние отступы в пустом состоянии */
+.messages-container > div:only-child {
+    padding: 20px;
+}
+
+/* Улучшаем скроллбар */
+.messages-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 2px;
+}
