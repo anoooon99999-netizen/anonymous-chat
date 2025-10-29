@@ -281,13 +281,19 @@ function updateAgeRange() {
 async function createChat() {
     console.log('🔍 Начинаем создание чата...');
     
-    const myGender = document.querySelector('#myGenderOptions .option-button.active').textContent;
+    const myGender = document.querySelector('#myGenderOptions .option-button.active')?.textContent;
     const myAge = document.getElementById('myAge').value;
-    const partnerGender = document.querySelector('#partnerGenderOptions .option-button.active').textContent;
+    const partnerGender = document.querySelector('#partnerGenderOptions .option-button.active')?.textContent;
     const minAge = document.getElementById('minAge').value;
     const maxAge = document.getElementById('maxAge').value;
 
     console.log('📊 Данные:', { myGender, myAge, partnerGender, minAge, maxAge });
+
+    // Проверка выбора пола
+    if (!myGender || !partnerGender) {
+        showNotification('Пожалуйста, выберите пол');
+        return;
+    }
 
     if (!myAge || myAge < 18 || myAge > 80) {
         showNotification('Пожалуйста, введите корректный возраст (18-80)');
@@ -400,7 +406,12 @@ function createChatWithParams(params) {
         },
         body: JSON.stringify(chatData)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Ошибка сервера: ' + response.status);
+        }
+        return response.json();
+    })
     .then(result => {
         console.log('✅ Новый чат создан:', result);
         
@@ -424,7 +435,7 @@ function createChatWithParams(params) {
     })
     .catch(error => {
         console.error('❌ Ошибка создания чата:', error);
-        showNotification('❌ Ошибка создания чата');
+        showNotification('❌ Ошибка создания чата: ' + error.message);
         // Если ошибка - показываем экран чатов
         showScreen('chatsScreen');
     });
@@ -476,6 +487,9 @@ function getChatEmoji(theme) {
 async function loadMessages(chatId) {
     try {
         const response = await fetch(API_URL + '/api/messages?chat_id=' + chatId);
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки сообщений');
+        }
         const messages = await response.json();
         const container = document.getElementById('messagesContainer');
         container.innerHTML = '';
@@ -498,12 +512,14 @@ async function loadMessages(chatId) {
         container.scrollTop = container.scrollHeight;
     } catch (error) {
         console.error('Ошибка загрузки сообщений:', error);
+        showNotification('Ошибка загрузки сообщений');
     }
 }
 
 function addMessageToChat(message) {
     const container = document.getElementById('messagesContainer');
     
+    // Очищаем сообщение "Пока нет сообщений"
     if (container.innerHTML.includes('Пока нет сообщений')) {
         container.innerHTML = '';
     }
@@ -553,6 +569,8 @@ async function sendMessage() {
                     userId: vkUser?.id 
                 });
             }
+        } else {
+            throw new Error('Ошибка отправки');
         }
     } catch (error) {
         console.error('Ошибка отправки сообщения:', error);
@@ -632,10 +650,11 @@ function getTimeAgo(timestamp) {
     if (minutes < 1) return 'только что';
     if (minutes < 60) return minutes + ' мин назад';
     if (hours < 24) return hours + ' ч назад';
-    return Math.floor(diff / 86400000) + ' дн назад';
+    return Math.floor(hours / 24) + ' дн назад';
 }
 
 function showNotification(message) {
+    // Удаляем существующие уведомления
     const existingSnackbars = document.querySelectorAll('.snackbar');
     existingSnackbars.forEach(snackbar => snackbar.remove());
     
@@ -652,15 +671,30 @@ function showNotification(message) {
 function setupEventListeners() {
     document.querySelectorAll('.modal-overlay').forEach(modal => {
         modal.addEventListener('click', function(e) {
-            if (e.target === this) this.style.display = 'none';
+            if (e.target === this) {
+                this.style.display = 'none';
+            }
         });
     });
 
-    document.getElementById('messageInput')?.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
+    // Обработчик Enter для отправки сообщений
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    }
+
+    // Обработчики для слайдеров возраста
+    const minSlider = document.getElementById('minAgeSlider');
+    const maxSlider = document.getElementById('maxAgeSlider');
+    
+    if (minSlider && maxSlider) {
+        minSlider.addEventListener('input', updateAgeRange);
+        maxSlider.addEventListener('input', updateAgeRange);
+    }
 }
 
 // Функции для чата
@@ -851,7 +885,10 @@ function showPartnerLeftModal() {
 }
 
 function recreateChat() {
-    document.querySelector('.modal-overlay').remove();
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.remove();
+    }
     
     if (lastChatParams) {
         createChatWithParams(lastChatParams);
@@ -861,7 +898,10 @@ function recreateChat() {
 }
 
 function goToChats() {
-    document.querySelector('.modal-overlay').remove();
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.remove();
+    }
     showScreen('chatsScreen');
 }
 
@@ -894,3 +934,5 @@ function deleteAccount() {
     }
 }
 
+// Запуск приложения
+document.addEventListener('DOMContentLoaded', initApp);
