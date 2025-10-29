@@ -642,3 +642,61 @@ function openAppInfo() {
 
 // Запуск приложения
 document.addEventListener('DOMContentLoaded', initApp);
+
+// Функция показа модалки при выходе собеседника
+function showPartnerLeftModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content" style="text-align: center;">
+            <div class="modal-header">
+                <div class="modal-title">👤 Собеседник покинул чат</div>
+            </div>
+            <div style="padding: 20px;">
+                <p>Что вы хотите сделать?</p>
+                <div style="display: flex; gap: 12px; margin-top: 20px;">
+                    <button class="action-button" onclick="recreateChat()" style="flex: 1;">
+                        🔄 Создать такой же чат
+                    </button>
+                    <button class="action-button" onclick="goToChats()" style="flex: 1;">
+                        💬 Вернуться к чатам
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function recreateChat() {
+    // Закрываем модалку
+    document.querySelector('.modal-overlay').remove();
+    
+    // Создаем чат с теми же параметрами (нужно сохранять параметры)
+    if (window.lastChatParams) {
+        createChatWithParams(window.lastChatParams);
+    } else {
+        showScreen('chatsScreen');
+    }
+}
+
+function goToChats() {
+    document.querySelector('.modal-overlay').remove();
+    showScreen('chatsScreen');
+}
+
+// Сохраняем параметры при создании чата
+function createChat() {
+    // ... существующий код создания чата ...
+    
+    // ⭐ СОХРАНЯЕМ ПАРАМЕТРЫ
+    window.lastChatParams = {
+        myGender: document.querySelector('#myGenderOptions .option-button.active').textContent,
+        myAge: document.getElementById('myAge').value,
+        partnerGender: document.querySelector('#partnerGenderOptions .option-button.active').textContent,
+        minAge: document.getElementById('minAge').value,
+        maxAge: document.getElementById('maxAge').value,
+        theme: currentTheme
+    };
+}
