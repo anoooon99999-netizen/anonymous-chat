@@ -363,35 +363,24 @@ async function createChat() {
 
 // Функция создания чата с параметрами
 function createChatWithParams(params) {
-    // Устанавливаем параметры в форму
-    document.querySelectorAll('#myGenderOptions .option-button').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.textContent === params.myGender) {
-            btn.classList.add('active');
-        }
-    });
+    // Закрываем текущий чат если открыт
+    if (currentChat && socket) {
+        socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
+    }
     
-    document.getElementById('myAge').value = params.myAge;
+    // Очищаем текущий чат
+    currentChat = null;
     
-    document.querySelectorAll('#partnerGenderOptions .option-button').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.textContent === params.partnerGender) {
-            btn.classList.add('active');
-        }
-    });
-    
-    document.getElementById('minAge').value = params.minAge;
-    document.getElementById('maxAge').value = params.maxAge;
-    document.getElementById('minAgeSlider').value = params.minAge;
-    document.getElementById('maxAgeSlider').value = params.maxAge;
-    document.getElementById('minAgeValue').textContent = params.minAge;
-    document.getElementById('maxAgeValue').textContent = params.maxAge;
-    
-    // Устанавливаем тему
-    currentTheme = params.theme;
-    document.querySelectorAll('.chat-tab').forEach(tab => tab.classList.remove('active'));
-    document.querySelector(`.chat-tab:contains("${params.theme}")`).classList.add('active');
-    document.getElementById('createChatText').textContent = 'Создать чат для ' + params.theme;
+    // Очищаем сообщения
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
+                <div>Создаем новый чат...</div>
+            </div>
+        `;
+    }
     
     // Создаем чат
     const chatData = {
@@ -413,27 +402,49 @@ function createChatWithParams(params) {
     })
     .then(response => response.json())
     .then(result => {
+        console.log('✅ Новый чат создан:', result);
+        
         userStats.createdChats++;
         saveUserStats();
         updateProfileStats();
-        showNotification('✅ Чат успешно создан! Ожидаем собеседника...');
+        showNotification('✅ Новый чат создан! Ожидаем собеседника...');
         
-        setTimeout(() => startChat({
+        // Создаем объект нового чата
+        const newChat = {
             id: result.id,
             gender: params.myGender + ', ' + params.myAge,
             lookingFor: params.partnerGender + ', ' + params.minAge + '-' + params.maxAge,
             theme: params.theme,
             participants_count: 1,
             timestamp: Date.now()
-        }), 500);
+        };
+        
+        // Запускаем новый чат
+        startChat(newChat);
     })
     .catch(error => {
         console.error('❌ Ошибка создания чата:', error);
         showNotification('❌ Ошибка создания чата');
+        // Если ошибка - показываем экран чатов
+        showScreen('chatsScreen');
     });
 }
 
 async function startChat(chat) {
+    // Очищаем предыдущий чат
+    currentChat = null;
+    
+    // Очищаем сообщения
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
+                <div>Загружаем чат...</div>
+            </div>
+        `;
+    }
+    
     currentChat = chat;
     document.getElementById('chatRoomTitle').textContent = getChatEmoji(chat.theme) + ' ' + chat.theme;
     showScreen('chatRoomScreen');
