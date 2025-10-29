@@ -11,6 +11,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: v
 .header h1 { font-size: 34px; font-weight: 700; margin-bottom: 4px; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .header p { font-size: 16px; color: var(--text-secondary); }
 
+/* Стили для индикатора автообновления */
+.auto-refresh-indicator {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 5px;
+    animation: pulse 2s infinite;
+    padding: 4px 8px;
+    background: rgba(139, 92, 246, 0.1);
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.last-update {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin: 10px 0;
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.05);
+    border-radius: 10px;
+    border-left: 3px solid var(--primary);
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
 .notification-section { background: linear-gradient(135deg, var(--primary-light), var(--accent)); color: white; padding: 20px; border-radius: 20px; margin-bottom: 24px; box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3); }
 .notification-title { font-weight: 600; margin-bottom: 8px; font-size: 17px; }
 .notification-text { font-size: 15px; color: rgba(255,255,255,0.9); margin-bottom: 16px; line-height: 1.4; }
