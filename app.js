@@ -98,7 +98,7 @@ function initSocket() {
             if (currentChat && data.chatId === currentChat.id) {
                 onlineUsers.delete(data.userId);
                 updateOnlineCount();
-                showNotification('👤 Собеседник покинул чат');
+                showPartnerLeftModal()
             }
         });
         
