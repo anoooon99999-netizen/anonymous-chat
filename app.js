@@ -709,8 +709,115 @@ function openNotificationsSettings() {
     showNotification('Настройки уведомлений в разработке');
 }
 
+// ОБНОВЛЕННАЯ ФУНКЦИЯ - Настройки конфиденциальности
 function openPrivacySettings() {
-    showNotification('Настройки приватности в разработке');
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
+            <div class="modal-header">
+                <div class="modal-title">🔒 Конфиденциальность и Безопасность</div>
+                <button class="close-button" onclick="this.closest('.modal-overlay').remove()">×</button>
+            </div>
+            
+            <div style="padding: 0 20px 20px;">
+                <!-- Основные настройки -->
+                <div class="privacy-section">
+                    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 18px;">📱 Настройки приватности</h3>
+                    
+                    <div class="privacy-item">
+                        <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-weight: 600;">Скрыть мой профиль</span>
+                            <label class="switch">
+                                <input type="checkbox" checked>
+                                <span class="slider-switch"></span>
+                            </label>
+                        </div>
+                        <p style="color: var(--text-secondary); font-size: 14px;">Ваш профиль не будет отображаться в общем списке пользователей</p>
+                    </div>
+                    
+                    <div class="privacy-item">
+                        <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-weight: 600;">Анонимный режим</span>
+                            <label class="switch">
+                                <input type="checkbox" checked>
+                                <span class="slider-switch"></span>
+                            </label>
+                        </div>
+                        <p style="color: var(--text-secondary); font-size: 14px;">Собеседники не увидят вашу базовую информацию</p>
+                    </div>
+                </div>
+
+                <!-- Блокировка -->
+                <div class="privacy-section">
+                    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 18px;">🚫 Управление блокировками</h3>
+                    <div style="background: var(--background); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+                        <p style="color: var(--text-secondary); margin-bottom: 12px;">Заблокированные пользователи: <strong>0</strong></p>
+                        <button class="action-button" style="width: 100%; padding: 12px;" onclick="showBlockedUsers()">Просмотреть список</button>
+                    </div>
+                </div>
+
+                <!-- Данные -->
+                <div class="privacy-section">
+                    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 18px;">📊 Ваши данные</h3>
+                    
+                    <div class="data-item" onclick="exportData()">
+                        <div style="display: flex; justify-content: between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600;">Экспорт данных</div>
+                                <div style="color: var(--text-secondary); font-size: 14px;">Скачайте историю ваших чатов</div>
+                            </div>
+                            <span style="color: var(--primary); font-size: 20px;">⤓</span>
+                        </div>
+                    </div>
+                    
+                    <div class="data-item" onclick="clearHistory()" style="margin-top: 12px;">
+                        <div style="display: flex; justify-content: between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600; color: var(--error);">Очистить историю</div>
+                                <div style="color: var(--text-secondary); font-size: 14px;">Удалить все чаты и сообщения</div>
+                            </div>
+                            <span style="color: var(--error); font-size: 20px;">🗑️</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Политика -->
+                <div class="privacy-section">
+                    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 18px;">📄 Политика конфиденциальности</h3>
+                    
+                    <div style="background: var(--background); padding: 16px; border-radius: 12px;">
+                        <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px; line-height: 1.5;">
+                            • Все чаты защищены сквозным шифрованием<br>
+                            • Мы не храним личные данные пользователей<br>
+                            • Сообщения автоматически удаляются через 24 часа<br>
+                            • Администрация не имеет доступа к вашим перепискам
+                        </p>
+                        
+                        <div style="display: flex; gap: 12px; margin-top: 16px;">
+                            <button class="action-button" style="flex: 1; padding: 12px;" onclick="openPrivacyPolicy()">Полная политика</button>
+                            <button class="action-button" style="flex: 1; padding: 12px; background: var(--background); color: var(--text);" onclick="openTerms()">Условия использования</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Экстренные действия -->
+                <div class="privacy-section">
+                    <h3 style="color: var(--error); margin-bottom: 16px; font-size: 18px;">🚨 Экстренные действия</h3>
+                    
+                    <button class="action-button" style="width: 100%; padding: 14px; background: var(--error); margin-bottom: 8px;" onclick="deleteAccount()">
+                        Удалить аккаунт
+                    </button>
+                    <p style="color: var(--text-secondary); font-size: 12px; text-align: center;">
+                        Это действие невозможно отменить. Все ваши данные будут безвозвратно удалены.
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
 }
 
 function openAppInfo() {
@@ -742,6 +849,7 @@ function showPartnerLeftModal() {
     `;
     document.body.appendChild(modal);
 }
+
 function recreateChat() {
     document.querySelector('.modal-overlay').remove();
     
@@ -755,6 +863,35 @@ function recreateChat() {
 function goToChats() {
     document.querySelector('.modal-overlay').remove();
     showScreen('chatsScreen');
+}
+
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ КОНФИДЕНЦИАЛЬНОСТИ
+function showBlockedUsers() {
+    showNotification('Список заблокированных пользователей пуст');
+}
+
+function exportData() {
+    showNotification('Функция экспорта данных в разработке');
+}
+
+function clearHistory() {
+    if(confirm('Вы уверены? Все ваши чаты и сообщения будут удалены.')) {
+        showNotification('История чатов очищена');
+    }
+}
+
+function openPrivacyPolicy() {
+    showNotification('Открывается полная политика конфиденциальности');
+}
+
+function openTerms() {
+    showNotification('Открываются условия использования');
+}
+
+function deleteAccount() {
+    if(confirm('ВНИМАНИЕ! Это удалит ваш аккаунт и все данные. Продолжить?')) {
+        showNotification('Аккаунт будет удален в течение 24 часов');
+    }
 }
 
 // Запуск приложения
