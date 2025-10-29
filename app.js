@@ -712,17 +712,17 @@ function showPartnerLeftModal() {
     modal.className = 'modal-overlay';
     modal.style.display = 'block';
     modal.innerHTML = `
-        <div class="modal-content" style="text-align: center;">
+        <div class="modal-content" style="text-align: center; max-width: 300px;">
             <div class="modal-header">
                 <div class="modal-title">👤 Собеседник покинул чат</div>
             </div>
             <div style="padding: 20px;">
-                <p>Что вы хотите сделать?</p>
-                <div style="display: flex; gap: 12px; margin-top: 20px;">
-                    <button class="action-button" onclick="recreateChat()" style="flex: 1;">
+                <p style="margin-bottom: 20px;">Что вы хотите сделать?</p>
+                <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+                    <button class="action-button" onclick="recreateChat()" style="width: 100%;">
                         🔄 Создать такой же чат
                     </button>
-                    <button class="action-button" onclick="goToChats()" style="flex: 1;">
+                    <button class="action-button" onclick="goToChats()" style="width: 100%;">
                         💬 Вернуться к чатам
                     </button>
                 </div>
@@ -731,7 +731,6 @@ function showPartnerLeftModal() {
     `;
     document.body.appendChild(modal);
 }
-
 function recreateChat() {
     document.querySelector('.modal-overlay').remove();
     
