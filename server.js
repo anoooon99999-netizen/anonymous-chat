@@ -49,6 +49,19 @@ app.post('/api/chats', (req, res) => {
   
   console.log(`🆕 New chat created: ${chatId} by ${user_id}`);
   
+  // ⭐ РАССЫЛАЕМ ВСЕМ КЛИЕНТАМ О НОВОМ ЧАТЕ
+  io.emit('new_chat_created', {
+    id: chat.id,
+    user_gender: chat.user_gender,
+    user_age: chat.user_age,
+    partner_gender: chat.partner_gender,
+    min_age: chat.min_age,
+    max_age: chat.max_age,
+    theme: chat.theme,
+    created_at: chat.created_at,
+    participants_count: chat.participants.length
+  });
+  
   res.json(chat);
 });
 
@@ -155,6 +168,10 @@ io.on('connection', (socket) => {
       // Если теперь 2 участника - активируем чат
       if (chat.participants.length === 2) {
         chat.status = 'active';
+        
+        // ⭐ УВЕДОМЛЯЕМ ВСЕХ ОБ АКТИВАЦИИ ЧАТА
+        io.emit('chat_activated', { chatId });
+        
         io.to(chatId).emit('chat_activated', { chatId });
       }
     }
@@ -186,6 +203,22 @@ io.on('connection', (socket) => {
     const { chatId, userId } = data;
     
     if (activeChats.has(chatId)) {
+      const chat = activeChats.get(chatId);
+      
+      // Удаляем пользователя из участников
+      const userIndex = chat.participants.indexOf(userId);
+      if (userIndex > -1) {
+        chat.participants.splice(userIndex, 1);
+        
+        // Если участников не осталось - удаляем чат
+        if (chat.participants.length === 0) {
+          activeChats.delete(chatId);
+          chatMessages.delete(chatId);
+          // ⭐ УВЕДОМЛЯЕМ ВСЕХ ОБ УДАЛЕНИИ ЧАТА
+          io.emit('chat_removed', { chatId });
+        }
+      }
+      
       socket.leave(chatId);
       socket.to(chatId).emit('user_left', { chatId, userId });
     }
@@ -227,6 +260,8 @@ setInterval(() => {
     if (chatTime < hourAgo) {
       activeChats.delete(chatId);
       chatMessages.delete(chatId);
+      // ⭐ УВЕДОМЛЯЕМ ВСЕХ ОБ УДАЛЕНИИ ЧАТА
+      io.emit('chat_removed', { chatId });
       console.log(`🗑️  Cleaned up old chat: ${chatId}`);
     }
   }
