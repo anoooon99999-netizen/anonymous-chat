@@ -296,15 +296,14 @@
                         <span id="typingIndicator" style="display: none;"> - печатает...</span>
                     </div>
                 </div>
-                <div class="chat-actions">
-                    <button class="action-button" onclick="addToFriends()">
-                        <span style="margin-right: 4px;">👤</span>Добавить в друзья
-                    </button>
-                    <button class="action-button" onclick="reportUser()">
-                        <span style="margin-right: 4px;">⚠️</span>Пожаловаться
-                    </button>
-                </div>
-            </div>
+            <div class="chat-actions">
+    <button class="action-button" data-icon="👤" onclick="addToFriends()">
+        <span style="margin-right: 4px;">👤</span>Добавить
+    </button>
+    <button class="action-button" data-icon="⚠️" onclick="reportUser()">
+        <span style="margin-right: 4px;">⚠️</span>Пожаловаться
+    </button>
+</div>  
 
             <div class="messages-container" id="messagesContainer">
                 <!-- Сообщения загружаются динамически -->
