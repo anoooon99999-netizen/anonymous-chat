@@ -13,8 +13,6 @@ let userStats = {
 };
 let vkUser = null;
 let currentChat = null;
-// ⭐ УБИРАЕМ ОБЪЯВЛЕНИЕ socket - оно уже в index.html
-// let socket = null;
 let isVK = false;
 let currentTheme = 'Общение';
 let typingTimer = null;
@@ -36,13 +34,14 @@ async function initApp() {
     } catch (error) {
         console.log('Приложение запущено вне VK:', error.message);
         isVK = false;
+        // ⭐ УБИРАЕМ ИМЯ "ТЕСТ ПОЛЬЗОВАТЕЛЬ" - ДЕЛАЕМ ПОЛНОСТЬЮ АНОНИМНЫМ
         vkUser = { 
-            id: 'test_user_' + Date.now(), 
-            first_name: 'Тест', 
-            last_name: 'Пользователь' 
+            id: 'user_' + Math.random().toString(36).substr(2, 9),
+            first_name: 'Аноним',
+            last_name: ''
         };
         updateUserInterface(vkUser);
-        showNotification('Режим тестирования - можно создавать чаты');
+        showNotification('Анонимный режим - можно создавать чаты');
     }
 
     initSocket();
@@ -53,9 +52,9 @@ async function initApp() {
 }
 
 function updateUserInterface(userInfo) {
-    document.getElementById('vkUserName').textContent = userInfo.first_name + ' ' + userInfo.last_name;
+    document.getElementById('vkUserName').textContent = userInfo.first_name + (userInfo.last_name ? ' ' + userInfo.last_name : '');
     document.getElementById('vkUserInfo').style.display = 'flex';
-    document.getElementById('profileName').textContent = userInfo.first_name + ' ' + userInfo.last_name;
+    document.getElementById('profileName').textContent = userInfo.first_name + (userInfo.last_name ? ' ' + userInfo.last_name : '');
     document.getElementById('currentAvatar').textContent = userInfo.first_name.charAt(0);
 }
 
@@ -173,7 +172,8 @@ function initSocket() {
 
 function updateOnlineCount() {
     const count = onlineUsers.size;
-    document.getElementById('onlineCount').textContent = count + ' участников онлайн';
+    // ⭐ УПРОЩАЕМ ОТОБРАЖЕНИЕ - ТОЛЬКО КОЛИЧЕСТВО ОНЛАЙН
+    document.getElementById('onlineCount').textContent = count + ' онлайн';
 }
 
 function handleTyping() {
@@ -255,7 +255,7 @@ function renderChatsList() {
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="theme-tag">${chat.theme}</div>
                 <div style="font-size: 12px; color: var(--text-secondary);">
-                    ${chat.participants_count}/2 • ${getTimeAgo(chat.timestamp)}
+                    ${getTimeAgo(chat.timestamp)}
                 </div>
             </div>
         `;
@@ -357,7 +357,8 @@ async function createChat() {
 
 async function startChat(chat) {
     currentChat = chat;
-    document.getElementById('chatRoomTitle').textContent = 'Чат: ' + chat.theme;
+    // ⭐ УКРАШАЕМ ЗАГОЛОВОК ЧАТА
+    document.getElementById('chatRoomTitle').textContent = getChatEmoji(chat.theme) + ' ' + chat.theme;
     showScreen('chatRoomScreen');
     
     document.body.classList.add('chat-room-active');
@@ -372,6 +373,16 @@ async function startChat(chat) {
         const input = document.getElementById('messageInput');
         if (input) input.focus();
     }, 300);
+}
+
+// ⭐ ФУНКЦИЯ ДЛЯ ЭМОДЗИ В ЗАГОЛОВКЕ ЧАТА
+function getChatEmoji(theme) {
+    const emojiMap = {
+        'Общение': '💬',
+        'Флирт': '😊',
+        'Роль': '🎭'
+    };
+    return emojiMap[theme] || '💬';
 }
 
 async function loadMessages(chatId) {
@@ -413,15 +424,17 @@ function addMessageToChat(message) {
     const isMyMessage = message.user_id === (vkUser?.id || 'anonymous');
     messageElement.className = 'message ' + (isMyMessage ? 'message-my' : 'message-their');
     
+    // ⭐ УКРАШАЕМ СООБЩЕНИЯ
     let messageContent = `
         <div class="message-content">${message.message}</div>
-        <div class="message-time">${new Date(message.created_at).toLocaleTimeString()}</div>
+        <div class="message-time">${new Date(message.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
     `;
     
     if (!isMyMessage) {
+        // ⭐ УБИРАЕМ ИМЯ ПОЛЬЗОВАТЕЛЯ - ДЕЛАЕМ ПОЛНОСТЬЮ АНОНИМНЫМ
         messageContent = `
-            <div class="message-sender">${message.user_name || 'Аноним'}</div>
-            ${messageContent}
+            <div class="message-content">${message.message}</div>
+            <div class="message-time">${new Date(message.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
         `;
     }
     
@@ -446,7 +459,8 @@ async function sendMessage() {
                 chat_id: currentChat.id,
                 user_id: vkUser?.id || 'anonymous',
                 message: text,
-                user_name: vkUser ? vkUser.first_name + ' ' + vkUser.last_name : 'Аноним'
+                // ⭐ ОТПРАВЛЯЕМ ПУСТОЕ ИМЯ ДЛЯ АНОНИМНОСТИ
+                user_name: ''
             })
         });
         
