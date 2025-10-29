@@ -37,7 +37,7 @@ app.post('/api/chats', (req, res) => {
     user_age: parseInt(user_age),
     partner_gender,
     min_age: parseInt(min_age),
-    max_age: parseInt(max_age),
+    max_age: parseInt(maxAge),
     theme,
     participants: [user_id],
     created_at: new Date().toISOString(),
@@ -47,7 +47,7 @@ app.post('/api/chats', (req, res) => {
   activeChats.set(chatId, chat);
   chatMessages.set(chatId, []);
   
-  console.log(`🆕 New chat created: ${chatId} by ${user_id}`);
+  console.log(`🆕 New chat created: ${chatId}`);
   
   // ⭐ РАССЫЛАЕМ ВСЕМ КЛИЕНТАМ О НОВОМ ЧАТЕ
   io.emit('new_chat_created', {
@@ -86,7 +86,7 @@ app.get('/api/chats', (req, res) => {
 
 // Отправка сообщения
 app.post('/api/messages', (req, res) => {
-  const { chat_id, user_id, message, user_name } = req.body;
+  const { chat_id, user_id, message } = req.body; // ⭐ УБИРАЕМ user_name
   
   if (!activeChats.has(chat_id)) {
     return res.status(404).json({ error: 'Chat not found' });
@@ -101,7 +101,7 @@ app.post('/api/messages', (req, res) => {
     id: uuidv4(),
     chat_id,
     user_id,
-    user_name,
+    // ⭐ НЕ ОТПРАВЛЯЕМ ИМЯ ПОЛЬЗОВАТЕЛЯ - ПОЛНАЯ АНОНИМНОСТЬ
     message,
     created_at: new Date().toISOString()
   };
@@ -125,7 +125,16 @@ app.get('/api/messages', (req, res) => {
   }
   
   const messages = chatMessages.get(chat_id);
-  res.json(messages);
+  // ⭐ УБИРАЕМ ИМЕНА ИЗ ИСТОРИИ СООБЩЕНИЙ
+  const anonymousMessages = messages.map(msg => ({
+    id: msg.id,
+    chat_id: msg.chat_id,
+    user_id: msg.user_id,
+    message: msg.message,
+    created_at: msg.created_at
+  }));
+  
+  res.json(anonymousMessages);
 });
 
 // Статистика онлайн пользователей
@@ -182,20 +191,20 @@ io.on('connection', (socket) => {
     // Присоединяем сокет к комнате чата
     socket.join(chatId);
     
-    // Уведомляем о новом участнике
+    // Уведомляем о новом участнике (БЕЗ ИМЕНИ)
     socket.to(chatId).emit('user_joined', {
       chatId,
-      userId,
-      participants: chat.participants
+      // ⭐ НЕ ОТПРАВЛЯЕМ userId ДЛЯ АНОНИМНОСТИ
+      participants: chat.participants.length // ⭐ ОТПРАВЛЯЕМ ТОЛЬКО КОЛИЧЕСТВО
     });
     
-    // Отправляем текущих онлайн пользователей
+    // Отправляем текущих онлайн пользователей (ТОЛЬКО КОЛИЧЕСТВО)
     io.to(chatId).emit('online_users', {
       chatId,
-      users: chat.participants
+      count: chat.participants.length // ⭐ ОТПРАВЛЯЕМ ТОЛЬКО КОЛИЧЕСТВО
     });
     
-    console.log(`👥 User ${userId} joined chat ${chatId}`);
+    console.log(`👥 User joined chat ${chatId}`);
   });
   
   // Покидание чата
@@ -220,19 +229,20 @@ io.on('connection', (socket) => {
       }
       
       socket.leave(chatId);
-      socket.to(chatId).emit('user_left', { chatId, userId });
+      // ⭐ УВЕДОМЛЯЕМ БЕЗ ИДЕНТИФИКАЦИИ ПОЛЬЗОВАТЕЛЯ
+      socket.to(chatId).emit('user_left', { chatId });
     }
   });
   
-  // Индикатор печати
+  // Индикатор печати (АНОНИМНЫЙ)
   socket.on('typing_start', (data) => {
-    const { chatId, userId } = data;
-    socket.to(chatId).emit('typing_start', { chatId, userId });
+    const { chatId } = data; // ⭐ УБИРАЕМ userId
+    socket.to(chatId).emit('typing_start', { chatId });
   });
   
   socket.on('typing_stop', (data) => {
-    const { chatId, userId } = data;
-    socket.to(chatId).emit('typing_stop', { chatId, userId });
+    const { chatId } = data; // ⭐ УБИРАЕМ userId
+    socket.to(chatId).emit('typing_stop', { chatId });
   });
   
   // Обработка отключения
