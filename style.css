@@ -830,3 +830,32 @@ body {
 
 #minAgeSlider { z-index: 2; }
 #maxAgeSlider { z-index: 1; }
+/* Уменьшаем карточку создания чата */
+.create-chat-card {
+    padding: 16px 20px;
+    margin-bottom: 16px;
+}
+
+.create-chat-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+.create-chat-text {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* Дополнительно можно уменьшить отступы если нужно еще меньше */
+.create-chat-card.small {
+    padding: 12px 16px;
+}
+
+.create-chat-card.small .create-chat-icon {
+    font-size: 20px;
+    margin-bottom: 6px;
+}
+
+.create-chat-card.small .create-chat-text {
+    font-size: 14px;
+}
