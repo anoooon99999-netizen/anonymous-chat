@@ -105,6 +105,8 @@ function initSocket() {
             if (currentChat && data.chatId === currentChat.id) {
                 showNotification('🎉 Чат активирован! Начинайте общение');
             }
+            // ⭐ ОБНОВЛЯЕМ СПИСОК ЧАТОВ ПРИ АКТИВАЦИИ ЛЮБОГО ЧАТА
+            loadAndRenderChats();
         });
         
         socket.on('typing_start', (data) => {
@@ -128,6 +130,38 @@ function initSocket() {
         
         socket.on('error', (data) => {
             showNotification('❌ ' + data.message);
+        });
+        
+        // ⭐ СЛУШАТЕЛЬ ДЛЯ НОВЫХ ЧАТОВ
+        socket.on('new_chat_created', (chat) => {
+            console.log('📨 Получен новый чат:', chat);
+            
+            const newChat = {
+                id: chat.id,
+                gender: chat.user_gender + ', ' + chat.user_age,
+                lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
+                theme: chat.theme,
+                participants_count: chat.participants_count,
+                timestamp: new Date(chat.created_at).getTime()
+            };
+            
+            // Добавляем чат в начало списка
+            allChats.unshift(newChat);
+            
+            // Если мы на вкладке с этой темой - обновляем отображение
+            if (chat.theme === currentTheme) {
+                renderChatsList();
+                showNotification('📢 Создан новый чат в разделе "' + chat.theme + '"');
+            }
+        });
+        
+        // ⭐ СЛУШАТЕЛЬ ДЛЯ УДАЛЕННЫХ ЧАТОВ
+        socket.on('chat_removed', (data) => {
+            console.log('🗑️ Чат удален:', data.chatId);
+            
+            // Удаляем чат из списка
+            allChats = allChats.filter(chat => chat.id !== data.chatId);
+            renderChatsList();
         });
         
     } catch (error) {
@@ -157,7 +191,8 @@ function handleTyping() {
     }, 1000);
 }
 
-async function loadChatsFromServer() {
+// ⭐ ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ ЧАТОВ С СЕРВЕРА
+window.loadChatsFromServer = async function() {
     try {
         const response = await fetch(API_URL + '/api/chats');
         const chats = await response.json();
@@ -177,7 +212,7 @@ async function loadChatsFromServer() {
 }
 
 async function loadAndRenderChats() {
-    const chats = await loadChatsFromServer();
+    const chats = await window.loadChatsFromServer();
     allChats = chats;
     renderChatsList();
 }
@@ -294,23 +329,21 @@ async function createChat() {
             const result = await response.json();
             console.log('Чат создан:', result);
             
-            const newChat = {
-                id: result.id,
-                gender: myGender + ', ' + myAge,
-                lookingFor: partnerGender + ', ' + minAge + '-' + maxAge,
-                theme: currentTheme,
-                participants_count: 1,
-                timestamp: Date.now()
-            };
-            allChats.unshift(newChat);
-            renderChatsList();
+            // ⭐ НЕ ДОБАВЛЯЕМ ЧАТ ВРУЧНУЮ - ОН ПРИДЕТ ЧЕРЕЗ WebSocket
             userStats.createdChats++;
             saveUserStats();
             updateProfileStats();
             showNotification('✅ Чат успешно создан! Ожидаем собеседника...');
             closeCreateChatModal();
             
-            setTimeout(() => startChat(newChat), 500);
+            setTimeout(() => startChat({
+                id: result.id,
+                gender: myGender + ', ' + myAge,
+                lookingFor: partnerGender + ', ' + minAge + '-' + maxAge,
+                theme: currentTheme,
+                participants_count: 1,
+                timestamp: Date.now()
+            }), 500);
         } else {
             throw new Error('Ошибка сервера: ' + response.status);
         }
