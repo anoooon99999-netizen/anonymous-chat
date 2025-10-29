@@ -28,7 +28,7 @@
             
             const onlineChatElement = document.getElementById('onlineCount');
             if (onlineChatElement) {
-                onlineChatElement.textContent = `${onlineCount} участников онлайн`;
+                onlineChatElement.textContent = `${onlineCount} онлайн`; // ⭐ УПРОЩАЕМ НАДПИСЬ
             }
         }
         
@@ -50,7 +50,7 @@
             // Слушаем событие нового чата
             socket.on('new_chat_created', (chat) => {
                 console.log('📨 Получен новый чат:', chat);
-                showNotification('Создан новый чат!', 'success');
+                showNotification('Создан новый чат!');
                 loadChats();
             });
             
@@ -66,9 +66,44 @@
                 loadChats();
             });
             
+            // ⭐ СЛУШАЕМ ОБНОВЛЕНИЕ ОНЛАЙН СЕРВЕРА
+            socket.on('online_users', (data) => {
+                if (data.count !== undefined) {
+                    document.getElementById('onlineCount').textContent = data.count + ' онлайн';
+                }
+            });
+            
+            // ⭐ СЛУШАЕМ ИНДИКАТОР ПЕЧАТИ (АНОНИМНЫЙ)
+            socket.on('typing_start', (data) => {
+                document.getElementById('typingIndicator').style.display = 'inline';
+            });
+            
+            socket.on('typing_stop', (data) => {
+                document.getElementById('typingIndicator').style.display = 'none';
+            });
+            
             // Первоначальная загрузка данных
             refreshData();
         });
+        
+        // ⭐ ПРОСТЫЕ ФУНКЦИИ ДЛЯ КНОПОК (если их нет в app.js)
+        function enableNotifications() {
+            showNotification('🔔 Уведомления включены!');
+        }
+        
+        function showNotification(message) {
+            const existingSnackbars = document.querySelectorAll('.snackbar');
+            existingSnackbars.forEach(snackbar => snackbar.remove());
+            
+            const snackbar = document.createElement('div');
+            snackbar.className = 'snackbar';
+            snackbar.textContent = message;
+            document.body.appendChild(snackbar);
+            
+            setTimeout(() => {
+                snackbar.remove();
+            }, 3000);
+        }
     </script>
 </head>
 <body>
@@ -255,9 +290,9 @@
             <div class="screen-header">
                 <button class="back-button" onclick="showScreen('chatsScreen')">‹</button>
                 <div class="chat-info">
-                    <div class="chat-title" id="chatRoomTitle">Чат</div>
+                    <div class="chat-title" id="chatRoomTitle">💬 Чат</div> <!-- ⭐ ДОБАВЛЯЕМ ЭМОДЗИ -->
                     <div class="chat-members">
-                        <span id="onlineCount">1 участник</span>
+                        <span id="onlineCount">1 онлайн</span> <!-- ⭐ УПРОЩАЕМ НАДПИСЬ -->
                         <span id="typingIndicator" style="display: none;"> - печатает...</span>
                     </div>
                 </div>
