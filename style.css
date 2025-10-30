@@ -911,3 +911,14 @@ body {
     font-size: 16px;
     font-weight: 600;
 }
+/* НИЖНЕЕ МЕНЮ С ТАКИМИ ЖЕ ОТСТУПАМИ КАК У КОНТЕЙНЕРА */
+.bottom-menu {
+    padding: 12px 20px !important;
+}
+
+/* Для мобильных устройств */
+@media (max-width: 700px) {
+    .bottom-menu {
+        padding: 12px 16px !important;
+    }
+}
