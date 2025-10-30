@@ -506,5 +506,78 @@
     </div>
 
     <script src="app.js"></script>
+        <!-- ЭКСТРЕННОЕ НИЖНЕЕ МЕНЮ -->
+<div id="emergencyBottomMenu" style="
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #1A1B2E;
+    border-top: 1px solid #2D3748;
+    display: flex;
+    padding: 15px;
+    z-index: 9999;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+">
+    <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px 16px; border-radius: 12px; background: linear-gradient(135deg, #6366F1, #8B5CF6, #EC4899);" onclick="showScreen('chatsScreen')">
+        <div style="font-size: 20px; margin-bottom: 6px;">💬</div>
+        <div style="font-size: 12px; font-weight: bold; color: white;">Чаты</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px 16px; border-radius: 12px; opacity: 0.7;" onclick="showScreen('profileScreen')">
+        <div style="font-size: 20px; margin-bottom: 6px;">👤</div>
+        <div style="font-size: 12px; font-weight: bold; color: white;">Профиль</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px 16px; border-radius: 12px; opacity: 0.7;" onclick="showScreen('settingsScreen')">
+        <div style="font-size: 20px; margin-bottom: 6px;">⚙️</div>
+        <div style="font-size: 12px; font-weight: bold; color: white;">Настройки</div>
+    </div>
+</div>
+
+<script>
+// Переопределяем функцию showScreen для нового меню
+function showScreen(screenId) {
+    // Скрываем все экраны
+    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+    
+    // Показываем выбранный экран
+    document.getElementById(screenId).classList.add('active');
+    
+    // Обновляем активное состояние в меню
+    document.querySelectorAll('#emergencyBottomMenu > div').forEach(item => {
+        item.style.opacity = '0.7';
+        item.style.background = 'transparent';
+    });
+    
+    // Подсвечиваем активный пункт
+    const menuIndex = {
+        'chatsScreen': 0,
+        'profileScreen': 1,
+        'settingsScreen': 2
+    }[screenId];
+    
+    if (menuIndex !== undefined) {
+        const menuItems = document.querySelectorAll('#emergencyBottomMenu > div');
+        menuItems[menuIndex].style.opacity = '1';
+        menuItems[menuIndex].style.background = 'linear-gradient(135deg, #6366F1, #8B5CF6, #EC4899)';
+    }
+    
+    // Скрываем меню в чате
+    if (screenId === 'chatRoomScreen') {
+        document.getElementById('emergencyBottomMenu').style.display = 'none';
+    } else {
+        document.getElementById('emergencyBottomMenu').style.display = 'flex';
+    }
+}
+
+// Скрываем оригинальное меню
+document.addEventListener('DOMContentLoaded', function() {
+    const originalMenu = document.querySelector('.bottom-menu');
+    if (originalMenu) {
+        originalMenu.style.display = 'none';
+    }
+});
+</script>
 </body>
 </html>
