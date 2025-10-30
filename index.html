@@ -4,10 +4,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Анонимный чат | VK</title>
+    
+    <!-- ПОДКЛЮЧАЕМ VK BRIDGE -->
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <link rel="stylesheet" href="style.css">
     
     <script>
+        // ИНИЦИАЛИЗАЦИЯ VK MINI APP
+        document.addEventListener('DOMContentLoaded', function() {
+            // Проверяем, загружен ли VK Bridge
+            if (typeof vkBridge !== 'undefined') {
+                console.log('🚀 VK Bridge загружен, инициализируем приложение...');
+                
+                // Отправляем событие инициализации
+                vkBridge.send('VKWebAppInit')
+                    .then(data => {
+                        console.log('✅ VK Mini App инициализирован:', data);
+                        
+                        // Получаем информацию о пользователе
+                        return vkBridge.send('VKWebAppGetUserInfo');
+                    })
+                    .then(userInfo => {
+                        console.log('👤 Информация о пользователе:', userInfo);
+                        
+                        // Сохраняем информацию о пользователе
+                        window.vkUser = userInfo;
+                        
+                        // Показываем информацию пользователя
+                        showVKUserInfo(userInfo);
+                        
+                        // Инициализируем приложение
+                        initializeApp();
+                    })
+                    .catch(error => {
+                        console.error('❌ Ошибка инициализации VK:', error);
+                        // Если VK Bridge не доступен, все равно инициализируем приложение
+                        initializeApp();
+                    });
+            } else {
+                console.log('⚠️ VK Bridge не доступен, запускаем в обычном режиме');
+                initializeApp();
+            }
+        });
+
+        function showVKUserInfo(userInfo) {
+            const userInfoElement = document.getElementById('vkUserInfo');
+            const avatarElement = document.getElementById('vkAvatar');
+            const nameElement = document.getElementById('vkUserName');
+            
+            if (userInfoElement && userInfo) {
+                userInfoElement.style.display = 'flex';
+                
+                if (userInfo.photo_100) {
+                    avatarElement.style.backgroundImage = `url(${userInfo.photo_100})`;
+                    avatarElement.textContent = '';
+                }
+                
+                if (userInfo.first_name || userInfo.last_name) {
+                    const fullName = [userInfo.first_name, userInfo.last_name].filter(Boolean).join(' ');
+                    nameElement.textContent = fullName;
+                }
+            }
+        }
+
+        function initializeApp() {
+            console.log('🚀 Приложение инициализировано');
+            
+            // Глобальная переменная для socket
+            window.socket = io();
+            
+            // Слушаем событие нового чата
+            window.socket.on('new_chat_created', (chat) => {
+                console.log('📨 Получен новый чат:', chat);
+                showNotification('Создан новый чат!');
+                if (window.loadChatsFromServer) {
+                    window.loadChatsFromServer();
+                }
+            });
+            
+            // Слушаем событие активации чата (убираем из списка)
+            window.socket.on('chat_activated', (data) => {
+                console.log('🔒 Чат активирован:', data.chatId);
+                if (window.loadChatsFromServer) {
+                    window.loadChatsFromServer();
+                }
+            });
+            
+            // Слушаем событие удаления чата
+            window.socket.on('chat_removed', (data) => {
+                console.log('🗑️ Чат удален:', data.chatId);
+                if (window.loadChatsFromServer) {
+                    window.loadChatsFromServer();
+                }
+            });
+            
+            // СЛУШАЕМ ОБНОВЛЕНИЕ ОНЛАЙН СЕРВЕРА
+            window.socket.on('online_users', (data) => {
+                if (data.count !== undefined) {
+                    const onlineElement = document.getElementById('onlineCount');
+                    if (onlineElement) {
+                        onlineElement.textContent = data.count + ' онлайн';
+                    }
+                }
+            });
+            
+            // СЛУШАЕМ ИНДИКАТОР ПЕЧАТИ (АНОНИМНЫЙ)
+            window.socket.on('typing_start', (data) => {
+                const typingElement = document.getElementById('typingIndicator');
+                if (typingElement) {
+                    typingElement.style.display = 'inline';
+                }
+            });
+            
+            window.socket.on('typing_stop', (data) => {
+                const typingElement = document.getElementById('typingIndicator');
+                if (typingElement) {
+                    typingElement.style.display = 'none';
+                }
+            });
+            
+            // Первоначальная загрузка данных
+            if (window.refreshData) {
+                window.refreshData();
+            }
+        }
+        
         // Глобальная переменная для socket
         let socket;
         
@@ -28,67 +150,34 @@
             
             const onlineChatElement = document.getElementById('onlineCount');
             if (onlineChatElement) {
-                onlineChatElement.textContent = `${onlineCount} онлайн`; // ⭐ УПРОЩАЕМ НАДПИСЬ
+                onlineChatElement.textContent = `${onlineCount} онлайн`;
             }
         }
         
         function loadChats() {
             console.log('Загрузка списка чатов...');
-            // Эта функция будет переопределена в app.js
             if (window.loadChatsFromServer) {
                 window.loadChatsFromServer();
             }
         }
         
-        // Инициализация при загрузке страницы
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Приложение загружено');
-            
-            // Инициализируем Socket.io соединение
-            socket = io();
-            
-            // Слушаем событие нового чата
-            socket.on('new_chat_created', (chat) => {
-                console.log('📨 Получен новый чат:', chat);
-                showNotification('Создан новый чат!');
-                loadChats();
-            });
-            
-            // Слушаем событие активации чата (убираем из списка)
-            socket.on('chat_activated', (data) => {
-                console.log('🔒 Чат активирован:', data.chatId);
-                loadChats();
-            });
-            
-            // Слушаем событие удаления чата
-            socket.on('chat_removed', (data) => {
-                console.log('🗑️ Чат удален:', data.chatId);
-                loadChats();
-            });
-            
-            // ⭐ СЛУШАЕМ ОБНОВЛЕНИЕ ОНЛАЙН СЕРВЕРА
-            socket.on('online_users', (data) => {
-                if (data.count !== undefined) {
-                    document.getElementById('onlineCount').textContent = data.count + ' онлайн';
-                }
-            });
-            
-            // ⭐ СЛУШАЕМ ИНДИКАТОР ПЕЧАТИ (АНОНИМНЫЙ)
-            socket.on('typing_start', (data) => {
-                document.getElementById('typingIndicator').style.display = 'inline';
-            });
-            
-            socket.on('typing_stop', (data) => {
-                document.getElementById('typingIndicator').style.display = 'none';
-            });
-            
-            // Первоначальная загрузка данных
-            refreshData();
-        });
-        
-        // ⭐ ПРОСТЫЕ ФУНКЦИИ ДЛЯ КНОПОК (если их нет в app.js)
+        // ПРОСТЫЕ ФУНКЦИИ ДЛЯ КНОПОК (если их нет в app.js)
         function enableNotifications() {
-            showNotification('🔔 Уведомления включены!');
+            // Используем VK Bridge для запроса разрешения на уведомления
+            if (typeof vkBridge !== 'undefined') {
+                vkBridge.send('VKWebAppAllowNotifications')
+                    .then(result => {
+                        if (result.result) {
+                            showNotification('🔔 Уведомления включены!');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка запроса уведомлений:', error);
+                        showNotification('🔔 Уведомления включены!');
+                    });
+            } else {
+                showNotification('🔔 Уведомления включены!');
+            }
         }
         
         function showNotification(message) {
@@ -103,6 +192,36 @@
             setTimeout(() => {
                 snackbar.remove();
             }, 3000);
+        }
+
+        // Функция для шаринга приложения через VK
+        function shareApp() {
+            if (typeof vkBridge !== 'undefined') {
+                vkBridge.send('VKWebAppShare', {
+                    link: 'https://vk.com/app52782331' // Замените на ID вашего приложения
+                }).catch(error => {
+                    console.error('Ошибка шаринга:', error);
+                    showNotification('Поделиться приложением');
+                });
+            } else {
+                showNotification('Поделиться приложением');
+            }
+        }
+
+        // Функция для приглашения друзей
+        function inviteFriends() {
+            if (typeof vkBridge !== 'undefined') {
+                vkBridge.send('VKWebAppShowInviteBox', {})
+                    .then(result => {
+                        console.log('Приглашение отправлено');
+                    })
+                    .catch(error => {
+                        console.error('Ошибка приглашения:', error);
+                        showNotification('Пригласить друзей');
+                    });
+            } else {
+                showNotification('Пригласить друзей');
+            }
         }
     </script>
 </head>
@@ -291,9 +410,9 @@
             <div class="screen-header">
                 <button class="back-button" onclick="showScreen('chatsScreen')">‹</button>
                 <div class="chat-info">
-                    <div class="chat-title" id="chatRoomTitle">💬 Чат</div> <!-- ⭐ ДОБАВЛЯЕМ ЭМОДЗИ -->
+                    <div class="chat-title" id="chatRoomTitle">💬 Чат</div>
                     <div class="chat-members">
-                        <span id="onlineCount">1 онлайн</span> <!-- ⭐ УПРОЩАЕМ НАДПИСЬ -->
+                        <span id="onlineCount">1 онлайн</span>
                         <span id="typingIndicator" style="display: none;"> - печатает...</span>
                     </div>
                 </div>
