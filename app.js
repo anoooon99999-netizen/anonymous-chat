@@ -169,35 +169,62 @@ function initSocket() {
             showNotification('❌ ' + data.message);
         });
         
+        // ВАЖНО: Слушаем создание новых чатов в реальном времени
         window.socket.on('new_chat_created', (chat) => {
-            console.log('📨 Получен новый чат:', chat);
+            console.log('📨 Получен новый чат в реальном времени:', chat);
             
-            const newChat = {
-                id: chat.id,
-                gender: chat.user_gender + ', ' + chat.user_age,
-                lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
-                theme: chat.theme,
-                participants_count: chat.participants_count,
-                timestamp: new Date(chat.created_at).getTime()
-            };
+            // Сразу добавляем чат в список без перезагрузки
+            addChatToList(chat);
             
-            allChats.unshift(newChat);
-            
-            if (chat.theme === currentTheme) {
-                renderChatsList();
+            // Показываем уведомление только если это не наш собственный чат
+            if (chat.user_id !== vkUser?.id) {
                 showNotification('📢 Создан новый чат в разделе "' + chat.theme + '"');
             }
         });
         
         window.socket.on('chat_removed', (data) => {
             console.log('🗑️ Чат удален:', data.chatId);
-            allChats = allChats.filter(chat => chat.id !== data.chatId);
-            renderChatsList();
+            removeChatFromList(data.chatId);
         });
         
     } catch (error) {
         console.error('Socket error:', error);
     }
+}
+
+// Функция для добавления чата в список
+function addChatToList(chat) {
+    const newChat = {
+        id: chat.id,
+        gender: chat.user_gender + ', ' + chat.user_age,
+        lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
+        theme: chat.theme,
+        participants_count: chat.participants_count,
+        timestamp: new Date(chat.created_at).getTime(),
+        userId: chat.user_id // Добавляем ID пользователя для фильтрации
+    };
+    
+    // Проверяем, нет ли уже такого чата в списке
+    const existingChatIndex = allChats.findIndex(c => c.id === chat.id);
+    if (existingChatIndex === -1) {
+        // Добавляем в начало списка
+        allChats.unshift(newChat);
+        console.log('✅ Чат добавлен в список:', newChat);
+        
+        // Если это текущая тема - сразу обновляем отображение
+        if (chat.theme === currentTheme) {
+            renderChatsList();
+        }
+    }
+}
+
+// Функция для удаления чата из списка
+function removeChatFromList(chatId) {
+    allChats = allChats.filter(chat => chat.id !== chatId);
+    console.log('🗑️ Чат удален из списка:', chatId);
+    
+    // Сразу обновляем отображение
+    renderChatsList();
 }
 
 function updateOnlineCount() {
@@ -244,7 +271,8 @@ window.loadChatsFromServer = async function() {
             lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
             theme: chat.theme,
             participants_count: chat.participants_count,
-            timestamp: new Date(chat.created_at).getTime()
+            timestamp: new Date(chat.created_at).getTime(),
+            userId: chat.user_id
         }));
     } catch (error) {
         console.error('❌ Ошибка загрузки чатов:', error);
@@ -426,18 +454,21 @@ async function createChat() {
             showNotification('✅ Чат успешно создан! Ожидаем собеседника...');
             closeCreateChatModal();
             
-            // Создаем объект чата для отображения
+            // Создаем объект чата для немедленного отображения
             const newChat = {
                 id: result.id,
                 gender: myGender + ', ' + myAge,
                 lookingFor: partnerGender + ', ' + minAge + '-' + maxAge,
                 theme: currentTheme,
                 participants_count: 1,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                userId: vkUser?.id || 'anonymous'
             };
             
-            // Добавляем в список и переходим к чату
-            allChats.unshift(newChat);
+            // НЕМЕДЛЕННО добавляем чат в список без перезагрузки
+            addChatToList(newChat);
+            
+            // Переходим к чату
             setTimeout(() => startChat(newChat), 500);
             
         } else {
@@ -968,8 +999,12 @@ function createChatWithParams(params) {
             lookingFor: params.partnerGender + ', ' + params.minAge + '-' + params.maxAge,
             theme: params.theme,
             participants_count: 1,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            userId: vkUser?.id || 'anonymous'
         };
+        
+        // НЕМЕДЛЕННО добавляем чат в список
+        addChatToList(newChat);
         
         // Запускаем новый чат
         startChat(newChat);
