@@ -894,3 +894,77 @@ body {
     font-size: 16px;
     font-weight: 600;
 }
+/* Фиксированная ширина 700px для всей страницы */
+body {
+    max-width: 700px;
+    margin: 0 auto;
+    position: relative;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    min-height: 100vh;
+}
+
+/* Контейнеры */
+.container {
+    max-width: 700px !important;
+    padding: 20px;
+    padding-bottom: 90px;
+}
+
+/* Нижнее меню - ширина 700px */
+.bottom-menu {
+    max-width: 700px;
+    margin: 0 auto;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 20px 20px 0 0;
+}
+
+/* Модальные окна */
+.modal-content {
+    max-width: 700px;
+    border-radius: 24px;
+}
+
+/* Сообщения - адаптируем под большую ширину */
+.message {
+    max-width: 75%;
+}
+
+.message-input-container {
+    width: 660px;
+    max-width: calc(100% - 40px);
+}
+
+/* Адаптивность для экранов меньше 700px */
+@media (max-width: 700px) {
+    body {
+        max-width: 100%;
+        box-shadow: none;
+    }
+    
+    .container {
+        padding: 16px;
+        padding-bottom: 90px;
+    }
+    
+    .bottom-menu {
+        max-width: 100%;
+        border-radius: 0;
+    }
+    
+    .message-input-container {
+        width: calc(100% - 32px);
+    }
+    
+    .message {
+        max-width: 85%;
+    }
+}
+
+/* Для очень больших экранов - центрируем */
+@media (min-width: 701px) {
+    body {
+        border-left: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+    }
+}
