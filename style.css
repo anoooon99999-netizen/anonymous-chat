@@ -1079,3 +1079,64 @@ document.addEventListener('DOMContentLoaded', initApp);
     background: var(--primary);
     border-radius: 2px;
 }
+/* Исправления для нижнего меню */
+.bottom-menu {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--background);
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+}
+
+.menu-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    opacity: 0.7;
+}
+
+.menu-item.active {
+    opacity: 1;
+    background: var(--primary);
+    color: white;
+}
+
+.menu-icon {
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.menu-text {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Убедимся, что контейнеры не перекрывают меню */
+.container {
+    padding-bottom: 80px !important; /* Добавляем отступ снизу для меню */
+}
+
+.screen {
+    min-height: calc(100vh - 80px);
+    padding-bottom: 0;
+}
+
+/* Для экрана чата */
+.chat-room-active .bottom-menu {
+    display: none; /* Скрываем меню в чате */
+}
+
+.chat-room-active .container {
+    padding-bottom: 20px !important;
+}
