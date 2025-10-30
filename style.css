@@ -10,21 +10,25 @@
     --glass-effect: rgba(255, 255, 255, 0.05);
 }
 
+/* ФИКСИРОВАННАЯ ШИРИНА 700px БЕЗ ГРАНИЦ */
 body { 
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
     background: var(--background); 
     color: var(--text); 
     line-height: 1.6;
     min-height: 100vh;
+    max-width: 700px;
+    margin: 0 auto;
+    position: relative;
     overflow-x: hidden;
 }
 
-/* Контейнеры и общие стили */
+/* Контейнеры */
 .container { 
-    max-width: 400px; 
+    max-width: 700px; 
     margin: 0 auto; 
     padding: 20px;
-    padding-bottom: 90px; /* Место для нижнего меню */
+    padding-bottom: 90px;
     min-height: 100vh;
 }
 
@@ -142,15 +146,17 @@ body {
     font-weight: 600; 
 }
 
-/* ИСПРАВЛЕННОЕ НИЖНЕЕ МЕНЮ */
+/* ИСПРАВЛЕННОЕ НИЖНЕЕ МЕНЮ - ЦЕНТРИРОВАННОЕ */
 .bottom-menu {
     position: fixed;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 700px;
     background: var(--surface);
     border-top: 1px solid var(--border);
-    display: flex !important; /* Важно: принудительно показываем */
+    display: flex !important;
     padding: 12px 16px;
     z-index: 1000;
     justify-content: space-around;
@@ -270,7 +276,7 @@ body {
     max-height: 90vh; 
     overflow-y: auto; 
     width: 100%; 
-    max-width: 400px;
+    max-width: 700px;
     border: 1px solid var(--border);
     border-bottom: none;
 }
@@ -519,7 +525,7 @@ body {
     margin-bottom: 16px; 
     padding: 16px 20px; 
     border-radius: 20px; 
-    max-width: 85%; 
+    max-width: 75%;
     word-wrap: break-word; 
     position: relative;
     animation: messageAppear 0.3s ease-out;
@@ -580,7 +586,7 @@ body {
     border-radius: 25px;
     display: flex;
     gap: 12px;
-    width: 360px;
+    width: 660px;
     max-width: calc(100% - 40px);
     justify-content: space-between;
     box-shadow: var(--card-shadow);
@@ -668,16 +674,27 @@ body {
     font-weight: 600;
 }
 
-/* Адаптивность */
-@media (max-width: 420px) { 
+/* Адаптивность для экранов меньше 700px */
+@media (max-width: 700px) {
+    body {
+        max-width: 100%;
+    }
+    
     .container {
         padding: 16px;
-        padding-bottom: 100px;
+        padding-bottom: 90px;
+    }
+    
+    .bottom-menu {
+        max-width: 100%;
     }
     
     .message-input-container {
         width: calc(100% - 32px);
-        bottom: 120px;
+    }
+    
+    .message {
+        max-width: 85%;
     }
     
     .header h1 {
@@ -893,78 +910,4 @@ body {
 .empty-text {
     font-size: 16px;
     font-weight: 600;
-}
-/* Фиксированная ширина 700px для всей страницы */
-body {
-    max-width: 700px;
-    margin: 0 auto;
-    position: relative;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
-    min-height: 100vh;
-}
-
-/* Контейнеры */
-.container {
-    max-width: 700px !important;
-    padding: 20px;
-    padding-bottom: 90px;
-}
-
-/* Нижнее меню - ширина 700px */
-.bottom-menu {
-    max-width: 700px;
-    margin: 0 auto;
-    left: 50%;
-    transform: translateX(-50%);
-    border-radius: 20px 20px 0 0;
-}
-
-/* Модальные окна */
-.modal-content {
-    max-width: 700px;
-    border-radius: 24px;
-}
-
-/* Сообщения - адаптируем под большую ширину */
-.message {
-    max-width: 75%;
-}
-
-.message-input-container {
-    width: 660px;
-    max-width: calc(100% - 40px);
-}
-
-/* Адаптивность для экранов меньше 700px */
-@media (max-width: 700px) {
-    body {
-        max-width: 100%;
-        box-shadow: none;
-    }
-    
-    .container {
-        padding: 16px;
-        padding-bottom: 90px;
-    }
-    
-    .bottom-menu {
-        max-width: 100%;
-        border-radius: 0;
-    }
-    
-    .message-input-container {
-        width: calc(100% - 32px);
-    }
-    
-    .message {
-        max-width: 85%;
-    }
-}
-
-/* Для очень больших экранов - центрируем */
-@media (min-width: 701px) {
-    body {
-        border-left: 1px solid var(--border);
-        border-right: 1px solid var(--border);
-    }
 }
