@@ -5,49 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Анонимный чат | VK</title>
     
-    <!-- ПОДКЛЮЧАЕМ VK BRIDGE -->
+    <!-- Подключаем VK Bridge -->
     <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <link rel="stylesheet" href="style.css">
     
     <script>
-        // ИНИЦИАЛИЗАЦИЯ VK MINI APP
+        // Глобальные переменные
+        let socket;
+        window.vkUser = null;
+
+        // Инициализация VK Mini App
         document.addEventListener('DOMContentLoaded', function() {
-            // Проверяем, загружен ли VK Bridge
+            console.log('🚀 DOM загружен, инициализируем приложение...');
+            
+            initializeVK();
+            initializeSocket();
+            setupEventListeners();
+            refreshData();
+        });
+
+        // Инициализация VK Bridge
+        function initializeVK() {
             if (typeof vkBridge !== 'undefined') {
-                console.log('🚀 VK Bridge загружен, инициализируем приложение...');
+                console.log('✅ VK Bridge доступен');
                 
-                // Отправляем событие инициализации
                 vkBridge.send('VKWebAppInit')
                     .then(data => {
-                        console.log('✅ VK Mini App инициализирован:', data);
-                        
-                        // Получаем информацию о пользователе
+                        console.log('✅ VK Mini App инициализирован');
                         return vkBridge.send('VKWebAppGetUserInfo');
                     })
                     .then(userInfo => {
-                        console.log('👤 Информация о пользователе:', userInfo);
-                        
-                        // Сохраняем информацию о пользователе
+                        console.log('👤 Получена информация о пользователе');
                         window.vkUser = userInfo;
-                        
-                        // Показываем информацию пользователя
                         showVKUserInfo(userInfo);
-                        
-                        // Инициализируем приложение
-                        initializeApp();
                     })
                     .catch(error => {
-                        console.error('❌ Ошибка инициализации VK:', error);
-                        // Если VK Bridge не доступен, все равно инициализируем приложение
-                        initializeApp();
+                        console.error('❌ Ошибка VK:', error);
                     });
             } else {
-                console.log('⚠️ VK Bridge не доступен, запускаем в обычном режиме');
-                initializeApp();
+                console.log('⚠️ VK Bridge не доступен');
             }
-        });
+        }
 
+        // Инициализация Socket.io
+        function initializeSocket() {
+            window.socket = io();
+            setupSocketListeners();
+        }
+
+        // Настройка слушателей Socket.io
+        function setupSocketListeners() {
+            if (!window.socket) return;
+
+            // События чатов
+            window.socket.on('new_chat_created', (chat) => {
+                console.log('📨 Новый чат создан:', chat);
+                showNotification('Создан новый чат!');
+                loadChatsFromServer();
+            });
+
+            window.socket.on('chat_activated', (data) => {
+                console.log('🔒 Чат активирован:', data.chatId);
+                loadChatsFromServer();
+            });
+
+            window.socket.on('chat_removed', (data) => {
+                console.log('🗑️ Чат удален:', data.chatId);
+                loadChatsFromServer();
+            });
+
+            // Онлайн пользователи
+            window.socket.on('online_users', (data) => {
+                if (data.count !== undefined) {
+                    updateOnlineCounter(data.count);
+                }
+            });
+
+            // Индикатор печати
+            window.socket.on('typing_start', (data) => {
+                showTypingIndicator(true);
+            });
+
+            window.socket.on('typing_stop', (data) => {
+                showTypingIndicator(false);
+            });
+        }
+
+        // Настройка обработчиков событий
+        function setupEventListeners() {
+            // Обработчик ввода сообщения
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('input', handleTyping);
+                messageInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        sendMessage();
+                    }
+                });
+            }
+        }
+
+        // Показать информацию пользователя VK
         function showVKUserInfo(userInfo) {
             const userInfoElement = document.getElementById('vkUserInfo');
             const avatarElement = document.getElementById('vkAvatar');
@@ -68,102 +127,57 @@
             }
         }
 
-        function initializeApp() {
-            console.log('🚀 Приложение инициализировано');
-            
-            // Глобальная переменная для socket
-            window.socket = io();
-            
-            // Слушаем событие нового чата
-            window.socket.on('new_chat_created', (chat) => {
-                console.log('📨 Получен новый чат:', chat);
-                showNotification('Создан новый чат!');
-                if (window.loadChatsFromServer) {
-                    window.loadChatsFromServer();
-                }
-            });
-            
-            // Слушаем событие активации чата (убираем из списка)
-            window.socket.on('chat_activated', (data) => {
-                console.log('🔒 Чат активирован:', data.chatId);
-                if (window.loadChatsFromServer) {
-                    window.loadChatsFromServer();
-                }
-            });
-            
-            // Слушаем событие удаления чата
-            window.socket.on('chat_removed', (data) => {
-                console.log('🗑️ Чат удален:', data.chatId);
-                if (window.loadChatsFromServer) {
-                    window.loadChatsFromServer();
-                }
-            });
-            
-            // СЛУШАЕМ ОБНОВЛЕНИЕ ОНЛАЙН СЕРВЕРА
-            window.socket.on('online_users', (data) => {
-                if (data.count !== undefined) {
-                    const onlineElement = document.getElementById('onlineCount');
-                    if (onlineElement) {
-                        onlineElement.textContent = data.count + ' онлайн';
-                    }
-                }
-            });
-            
-            // СЛУШАЕМ ИНДИКАТОР ПЕЧАТИ (АНОНИМНЫЙ)
-            window.socket.on('typing_start', (data) => {
-                const typingElement = document.getElementById('typingIndicator');
-                if (typingElement) {
-                    typingElement.style.display = 'inline';
-                }
-            });
-            
-            window.socket.on('typing_stop', (data) => {
-                const typingElement = document.getElementById('typingIndicator');
-                if (typingElement) {
-                    typingElement.style.display = 'none';
-                }
-            });
-            
-            // Первоначальная загрузка данных
-            if (window.refreshData) {
-                window.refreshData();
-            }
-        }
-        
-        // Глобальная переменная для socket
-        let socket;
-        
-        // Функция для обновления данных
+        // Обновление данных
         function refreshData() {
-            console.log('🔄 Обновление данных...', new Date().toLocaleTimeString());
+            console.log('🔄 Обновление данных...');
             updateOnlineUsers();
-            loadChats();
+            loadChatsFromServer();
         }
-        
-        // Базовые функции
+
+        // Обновление счетчика онлайн
         function updateOnlineUsers() {
             const onlineCount = Math.floor(Math.random() * 50) + 10;
+            updateOnlineCounter(onlineCount);
+        }
+
+        function updateOnlineCounter(count) {
             const onlineElement = document.getElementById('onlineUsersCount');
-            if (onlineElement) {
-                onlineElement.textContent = onlineCount;
-            }
-            
             const onlineChatElement = document.getElementById('onlineCount');
-            if (onlineChatElement) {
-                onlineChatElement.textContent = `${onlineCount} онлайн`;
+            
+            if (onlineElement) onlineElement.textContent = count;
+            if (onlineChatElement) onlineChatElement.textContent = `${count} онлайн`;
+        }
+
+        // Показать индикатор печати
+        function showTypingIndicator(show) {
+            const typingElement = document.getElementById('typingIndicator');
+            if (typingElement) {
+                typingElement.style.display = show ? 'inline' : 'none';
             }
         }
-        
-        function loadChats() {
-            console.log('Загрузка списка чатов...');
-            if (window.loadChatsFromServer) {
-                window.loadChatsFromServer();
-            }
+
+        // Уведомления
+        function showNotification(message) {
+            // Удаляем существующие уведомления
+            const existingSnackbars = document.querySelectorAll('.snackbar');
+            existingSnackbars.forEach(snackbar => snackbar.remove());
+            
+            // Создаем новое уведомление
+            const snackbar = document.createElement('div');
+            snackbar.className = 'snackbar';
+            snackbar.textContent = message;
+            document.body.appendChild(snackbar);
+            
+            // Автоматическое удаление
+            setTimeout(() => {
+                if (snackbar.parentNode) {
+                    snackbar.remove();
+                }
+            }, 3000);
         }
-        
-        // ПРОСТЫЕ ФУНКЦИИ ДЛЯ КНОПОК (если их нет в app.js)
+
+        // Включение уведомлений
         function enableNotifications() {
-            // Используем VK Bridge для запроса разрешения на уведомления
             if (typeof vkBridge !== 'undefined') {
                 vkBridge.send('VKWebAppAllowNotifications')
                     .then(result => {
@@ -172,33 +186,19 @@
                         }
                     })
                     .catch(error => {
-                        console.error('Ошибка запроса уведомлений:', error);
+                        console.error('Ошибка уведомлений:', error);
                         showNotification('🔔 Уведомления включены!');
                     });
             } else {
                 showNotification('🔔 Уведомления включены!');
             }
         }
-        
-        function showNotification(message) {
-            const existingSnackbars = document.querySelectorAll('.snackbar');
-            existingSnackbars.forEach(snackbar => snackbar.remove());
-            
-            const snackbar = document.createElement('div');
-            snackbar.className = 'snackbar';
-            snackbar.textContent = message;
-            document.body.appendChild(snackbar);
-            
-            setTimeout(() => {
-                snackbar.remove();
-            }, 3000);
-        }
 
-        // Функция для шаринга приложения через VK
+        // Поделиться приложением
         function shareApp() {
             if (typeof vkBridge !== 'undefined') {
                 vkBridge.send('VKWebAppShare', {
-                    link: 'https://vk.com/app52782331' // Замените на ID вашего приложения
+                    link: 'https://vk.com/app52782331'
                 }).catch(error => {
                     console.error('Ошибка шаринга:', error);
                     showNotification('Поделиться приложением');
@@ -208,12 +208,13 @@
             }
         }
 
-        // Функция для приглашения друзей
+        // Пригласить друзей
         function inviteFriends() {
             if (typeof vkBridge !== 'undefined') {
                 vkBridge.send('VKWebAppShowInviteBox', {})
                     .then(result => {
                         console.log('Приглашение отправлено');
+                        showNotification('Приглашение отправлено!');
                     })
                     .catch(error => {
                         console.error('Ошибка приглашения:', error);
@@ -222,6 +223,123 @@
             } else {
                 showNotification('Пригласить друзей');
             }
+        }
+
+        // Переключение экранов
+        function showScreen(screenId) {
+            console.log('🔄 Переключение на экран:', screenId);
+            
+            // Скрываем все экраны
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            // Показываем выбранный экран
+            const targetScreen = document.getElementById(screenId);
+            if (targetScreen) {
+                targetScreen.classList.add('active');
+                console.log('✅ Экран показан:', screenId);
+            }
+            
+            // Обновляем активное состояние в меню
+            updateMenuActiveState(screenId);
+            
+            // Управляем видимостью меню
+            toggleBottomMenu(screenId);
+        }
+
+        // Обновление активного состояния меню
+        function updateMenuActiveState(screenId) {
+            const menuItems = document.querySelectorAll('.bottom-menu .menu-item');
+            menuItems.forEach(item => item.classList.remove('active'));
+            
+            const menuIndex = {
+                'chatsScreen': 0,
+                'profileScreen': 1,
+                'settingsScreen': 2
+            }[screenId];
+            
+            if (menuIndex !== undefined && menuItems[menuIndex]) {
+                menuItems[menuIndex].classList.add('active');
+            }
+        }
+
+        // Переключение видимости нижнего меню
+        function toggleBottomMenu(screenId) {
+            const bottomMenu = document.querySelector('.bottom-menu');
+            if (bottomMenu) {
+                if (screenId === 'chatRoomScreen' || screenId === 'waitingScreen') {
+                    bottomMenu.style.display = 'none';
+                } else {
+                    bottomMenu.style.display = 'flex';
+                }
+            }
+        }
+
+        // Заглушки для функций, которые будут в app.js
+        function loadChatsFromServer() {
+            console.log('📋 Загрузка чатов с сервера...');
+            // Реализация будет в app.js
+        }
+
+        function handleTyping() {
+            // Реализация будет в app.js
+        }
+
+        function sendMessage() {
+            // Реализация будет в app.js
+        }
+
+        function switchChatTab(tabName) {
+            // Реализация будет в app.js
+        }
+
+        function openCreateChatModal() {
+            // Реализация будет в app.js
+        }
+
+        function closeCreateChatModal() {
+            // Реализация будет в app.js
+        }
+
+        function createChat() {
+            // Реализация будет в app.js
+        }
+
+        function cancelWaiting() {
+            // Реализация будет в app.js
+        }
+
+        function addToFriends() {
+            // Реализация будет в app.js
+        }
+
+        function reportUser() {
+            // Реализация будет в app.js
+        }
+
+        function openMyChats() {
+            // Реализация будет в app.js
+        }
+
+        function openNotificationsSettings() {
+            // Реализация будет в app.js
+        }
+
+        function openPrivacySettings() {
+            // Реализация будет в app.js
+        }
+
+        function addToFavorites() {
+            // Реализация будет в app.js
+        }
+
+        function openAppInfo() {
+            // Реализация будет в app.js
+        }
+
+        function support() {
+            // Реализация будет в app.js
         }
     </script>
 </head>
@@ -256,14 +374,15 @@
                 <div class="chat-tab" onclick="switchChatTab('Роль')">🎭 Роль</div>
             </div>
             
-           <!-- Исправленная карточка создания чата -->
-<div class="create-chat-card" onclick="openCreateChatModal()">
-    <div class="create-chat-icon">+</div>
-    <div class="create-chat-text" id="createChatText">Создать чат для Общения</div>
-</div>
+            <!-- Карточка создания чата -->
+            <div class="create-chat-card" onclick="openCreateChatModal()">
+                <div class="create-chat-icon">+</div>
+                <div class="create-chat-text" id="createChatText">Создать чат для Общения</div>
+            </div>
             
             <div class="user-cards" id="chatsContainer">
                 <!-- Чаты будут добавляться сюда динамически -->
+                <div class="loading-text">Загрузка чатов...</div>
             </div>
         </div>
     </div>
@@ -416,21 +535,26 @@
                         <span id="typingIndicator" style="display: none;"> - печатает...</span>
                     </div>
                 </div>
-            <div class="chat-actions">
-    <button class="action-button" data-icon="👤" onclick="addToFriends()">
-        <span style="margin-right: 4px;">👤</span>Добавить
-    </button>
-    <button class="action-button" data-icon="⚠️" onclick="reportUser()">
-        <span style="margin-right: 4px;">⚠️</span>Пожаловаться
-    </button>
-</div>  
+                <div class="chat-actions">
+                    <button class="action-button" onclick="addToFriends()">
+                        <span style="margin-right: 4px;">👤</span>Добавить
+                    </button>
+                    <button class="action-button" onclick="reportUser()">
+                        <span style="margin-right: 4px;">⚠️</span>Пожаловаться
+                    </button>
+                </div>  
+            </div>
 
             <div class="messages-container" id="messagesContainer">
                 <!-- Сообщения загружаются динамически -->
+                <div class="empty-chat">
+                    <div class="empty-icon">💬</div>
+                    <div class="empty-text">Начните общение первым!</div>
+                </div>
             </div>
 
             <div class="message-input-container">
-                <input type="text" id="messageInput" placeholder="Введите сообщение..." maxlength="500" oninput="handleTyping()">
+                <input type="text" id="messageInput" placeholder="Введите сообщение..." maxlength="500">
                 <button class="send-button" onclick="sendMessage()">
                     <span style="font-size: 18px;">➤</span>
                 </button>
@@ -476,8 +600,8 @@
                             <span>Диапазон: <span id="minAgeValue">18</span> - <span id="maxAgeValue">35</span> лет</span>
                         </div>
                         <div class="slider-wrapper">
-                            <input type="range" min="18" max="80" value="18" class="slider" id="minAgeSlider" oninput="updateAgeRange()">
-                            <input type="range" min="18" max="80" value="35" class="slider" id="maxAgeSlider" oninput="updateAgeRange()">
+                            <input type="range" min="18" max="80" value="18" class="slider" id="minAgeSlider">
+                            <input type="range" min="18" max="80" value="35" class="slider" id="maxAgeSlider">
                         </div>
                     </div>
                 </div>
@@ -506,78 +630,5 @@
     </div>
 
     <script src="app.js"></script>
-        <!-- ЭКСТРЕННОЕ НИЖНЕЕ МЕНЮ -->
-<div id="emergencyBottomMenu" style="
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: #1A1B2E;
-    border-top: 1px solid #2D3748;
-    display: flex;
-    padding: 15px;
-    z-index: 9999;
-    justify-content: space-around;
-    align-items: center;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-">
-    <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px 16px; border-radius: 12px; background: linear-gradient(135deg, #6366F1, #8B5CF6, #EC4899);" onclick="showScreen('chatsScreen')">
-        <div style="font-size: 20px; margin-bottom: 6px;">💬</div>
-        <div style="font-size: 12px; font-weight: bold; color: white;">Чаты</div>
-    </div>
-    <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px 16px; border-radius: 12px; opacity: 0.7;" onclick="showScreen('profileScreen')">
-        <div style="font-size: 20px; margin-bottom: 6px;">👤</div>
-        <div style="font-size: 12px; font-weight: bold; color: white;">Профиль</div>
-    </div>
-    <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px 16px; border-radius: 12px; opacity: 0.7;" onclick="showScreen('settingsScreen')">
-        <div style="font-size: 20px; margin-bottom: 6px;">⚙️</div>
-        <div style="font-size: 12px; font-weight: bold; color: white;">Настройки</div>
-    </div>
-</div>
-
-<script>
-// Переопределяем функцию showScreen для нового меню
-function showScreen(screenId) {
-    // Скрываем все экраны
-    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-    
-    // Показываем выбранный экран
-    document.getElementById(screenId).classList.add('active');
-    
-    // Обновляем активное состояние в меню
-    document.querySelectorAll('#emergencyBottomMenu > div').forEach(item => {
-        item.style.opacity = '0.7';
-        item.style.background = 'transparent';
-    });
-    
-    // Подсвечиваем активный пункт
-    const menuIndex = {
-        'chatsScreen': 0,
-        'profileScreen': 1,
-        'settingsScreen': 2
-    }[screenId];
-    
-    if (menuIndex !== undefined) {
-        const menuItems = document.querySelectorAll('#emergencyBottomMenu > div');
-        menuItems[menuIndex].style.opacity = '1';
-        menuItems[menuIndex].style.background = 'linear-gradient(135deg, #6366F1, #8B5CF6, #EC4899)';
-    }
-    
-    // Скрываем меню в чате
-    if (screenId === 'chatRoomScreen') {
-        document.getElementById('emergencyBottomMenu').style.display = 'none';
-    } else {
-        document.getElementById('emergencyBottomMenu').style.display = 'flex';
-    }
-}
-
-// Скрываем оригинальное меню
-document.addEventListener('DOMContentLoaded', function() {
-    const originalMenu = document.querySelector('.bottom-menu');
-    if (originalMenu) {
-        originalMenu.style.display = 'none';
-    }
-});
-</script>
 </body>
 </html>
