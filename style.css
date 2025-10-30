@@ -146,18 +146,20 @@ body {
     font-weight: 600; 
 }
 
-/* ИСПРАВЛЕННОЕ НИЖНЕЕ МЕНЮ - ЦЕНТРИРОВАННОЕ */
+/* НИЖНЕЕ МЕНЮ С ЗАКРУГЛЕННЫМИ КРАЯМИ И ПРАВИЛЬНЫМИ ОТСТУПАМИ */
 .bottom-menu {
     position: fixed;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: 100%;
-    max-width: 700px;
+    width: calc(100% - 40px); /* Ширина как у контента */
+    max-width: 660px; /* 700px - 40px отступов */
     background: var(--surface);
-    border-top: 1px solid var(--border);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 20px 20px 0 0; /* Закругленные верхние углы */
     display: flex !important;
-    padding: 12px 16px;
+    padding: 12px 20px; /* Такие же отступы как у контейнера */
     z-index: 1000;
     justify-content: space-around;
     align-items: center;
@@ -686,7 +688,10 @@ body {
     }
     
     .bottom-menu {
-        max-width: 100%;
+        width: calc(100% - 32px); /* 16px слева + 16px справа */
+        max-width: none;
+        padding: 12px 16px;
+        border-radius: 16px 16px 0 0;
     }
     
     .message-input-container {
@@ -699,10 +704,6 @@ body {
     
     .header h1 {
         font-size: 28px;
-    }
-    
-    .bottom-menu {
-        padding: 10px 12px;
     }
     
     .menu-item {
@@ -910,15 +911,4 @@ body {
 .empty-text {
     font-size: 16px;
     font-weight: 600;
-}
-/* НИЖНЕЕ МЕНЮ С ТАКИМИ ЖЕ ОТСТУПАМИ КАК У КОНТЕЙНЕРА */
-.bottom-menu {
-    padding: 12px 20px !important;
-}
-
-/* Для мобильных устройств */
-@media (max-width: 700px) {
-    .bottom-menu {
-        padding: 12px 16px !important;
-    }
 }
