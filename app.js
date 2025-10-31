@@ -18,6 +18,7 @@ let currentTheme = 'Общение';
 let typingTimer = null;
 let onlineUsers = new Set();
 let lastChatParams = null;
+let socket = null;
 
 // Инициализация приложения
 async function initApp() {
@@ -85,7 +86,6 @@ function initSocket() {
             if (currentChat) {
                 socket.emit('join_chat', { chatId: currentChat.id, userId: vkUser?.id });
             }
-            // Сразу загружаем чаты после подключения
             loadAndRenderChats();
         });
         
@@ -167,7 +167,6 @@ function initSocket() {
             renderChatsList();
         });
         
-        // СОБЫТИЕ ДЛЯ СИНХРОНИЗАЦИИ МЕЖДУ ВКЛАДКАМИ
         socket.on('chats_updated', () => {
             console.log('🔄 Синхронизация: получено обновление чатов');
             loadAndRenderChats();
@@ -215,11 +214,13 @@ window.loadChatsFromServer = async function() {
         }
         const chats = await response.json();
         console.log('📊 Получено чатов с сервера:', chats.length);
+        
+        // ПРАВИЛЬНОЕ преобразование данных с сервера
         return chats.map(chat => ({
             id: chat.id,
             gender: chat.user_gender + ', ' + chat.user_age,
             lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
-            theme: chat.theme,
+            theme: chat.theme, // ВАЖНО: используем theme с сервера
             participants_count: chat.participants_count,
             timestamp: new Date(chat.created_at).getTime()
         }));
@@ -236,7 +237,6 @@ async function loadAndRenderChats() {
         allChats = chats;
         renderChatsList();
         
-        // Уведомляем сервер об обновлении для синхронизации
         if (socket) {
             socket.emit('chats_loaded');
         }
@@ -251,8 +251,15 @@ function renderChatsList() {
     
     container.innerHTML = '';
 
-    const filteredChats = allChats.filter(chat => chat.theme === currentTheme);
+    // ИСПРАВЛЕННАЯ ФИЛЬТРАЦИЯ: правильное сравнение тем
+    const filteredChats = allChats.filter(chat => {
+        const matchesTheme = chat.theme === currentTheme;
+        console.log(`🔍 Чат "${chat.theme}" === "${currentTheme}": ${matchesTheme}`);
+        return matchesTheme;
+    });
+    
     console.log(`🎯 Отображаем чаты для темы "${currentTheme}":`, filteredChats.length);
+    console.log('📋 Все доступные темы:', [...new Set(allChats.map(chat => chat.theme))]);
 
     if (filteredChats.length === 0) {
         container.innerHTML = `
@@ -334,7 +341,14 @@ async function createChat() {
     const minAge = document.getElementById('minAge').value;
     const maxAge = document.getElementById('maxAge').value;
 
-    console.log('📊 Данные для создания чата:', { myGender, myAge, partnerGender, minAge, maxAge });
+    console.log('📊 Данные для создания чата:', { 
+        myGender, 
+        myAge, 
+        partnerGender, 
+        minAge, 
+        maxAge, 
+        theme: currentTheme 
+    });
 
     if (!myAge || myAge < 18 || myAge > 80) {
         showNotification('❌ Пожалуйста, введите корректный возраст (18-80)');
@@ -363,7 +377,7 @@ async function createChat() {
         partner_gender: partnerGender,
         min_age: parseInt(minAge),
         max_age: parseInt(maxAge),
-        theme: currentTheme
+        theme: currentTheme // ВАЖНО: передаем текущую тему
     };
 
     console.log('📨 Отправляем данные на сервер:', chatData);
