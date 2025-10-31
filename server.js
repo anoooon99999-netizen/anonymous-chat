@@ -60,9 +60,10 @@ app.post('/api/chats', (req, res) => {
     activeChats.set(chatId, chat);
     chatMessages.set(chatId, []);
     
-    console.log(`🆕 Новый чат: ${chatId}, тема: ${theme}, статус: waiting`);
+    console.log(`🆕 Новый чат создан: ${chatId}, тема: ${theme}`);
+    console.log(`📊 Всего чатов в системе: ${activeChats.size}`);
     
-    // Уведомляем всех о новом чате
+    // ВАЖНО: Рассылаем всем клиентам полную информацию о новом чате
     io.emit('new_chat_created', {
       id: chat.id,
       user_gender: chat.user_gender,
@@ -72,12 +73,12 @@ app.post('/api/chats', (req, res) => {
       max_age: chat.max_age,
       theme: chat.theme,
       created_at: chat.created_at,
-      participants_count: 1,
+      participants_count: chat.participants.length,
       status: chat.status
     });
 
-    // Синхронизация
-    io.emit('chats_updated');
+    // ВАЖНО: Принудительно обновляем всех клиентов
+    io.emit('force_refresh_chats');
     
     res.json(chat);
   } catch (error) {
@@ -104,7 +105,9 @@ app.get('/api/chats', (req, res) => {
         status: chat.status
       }));
     
-    console.log(`📊 Отправляем ${chats.length} чатов клиенту`);
+    console.log(`📊 Отправляем ${chats.length} активных чатов клиенту`);
+    console.log(`🎯 Темы чатов:`, [...new Set(chats.map(chat => chat.theme))]);
+    
     res.json(chats);
   } catch (error) {
     console.error('❌ Ошибка получения чатов:', error);
@@ -164,16 +167,41 @@ app.get('/api/messages', (req, res) => {
   }
 });
 
+// Статистика сервера
+app.get('/api/stats', (req, res) => {
+  try {
+    const stats = {
+      online_users: userSockets.size,
+      active_chats: Array.from(activeChats.values()).filter(chat => chat.status === 'active').length,
+      waiting_chats: Array.from(activeChats.values()).filter(chat => chat.status === 'waiting').length,
+      total_chats: activeChats.size
+    };
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('❌ Ошибка получения статистики:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
 // Socket.io обработчики
 io.on('connection', (socket) => {
-  console.log('🔗 Пользователь подключен:', socket.id);
+  console.log('🔗 Новое подключение:', socket.id);
   
-  socket.on('chats_loaded', () => {
-    socket.broadcast.emit('chats_updated');
+  // Отправляем текущую статистику при подключении
+  socket.emit('server_stats', {
+    online_users: userSockets.size,
+    total_chats: activeChats.size
   });
 
-  socket.on('new_chat_created_global', () => {
-    io.emit('chats_updated');
+  // Синхронизация чатов
+  socket.on('request_chats_update', () => {
+    console.log('🔄 Запрос обновления чатов от:', socket.id);
+    socket.emit('force_refresh_chats');
+  });
+
+  socket.on('chats_updated', () => {
+    socket.broadcast.emit('force_refresh_chats');
   });
 
   // Присоединение к чату
@@ -198,10 +226,15 @@ io.on('connection', (socket) => {
             chat.status = 'active';
             console.log(`🎉 Чат активирован: ${chatId}`);
             
+            // Уведомляем всех об активации
             io.emit('chat_activated', { chatId });
             io.to(chatId).emit('chat_activated', { chatId });
+            
+            // Удаляем чат из списка ожидания
             io.emit('chat_removed', { chatId });
-            io.emit('chats_updated');
+            
+            // Обновляем всех клиентов
+            io.emit('force_refresh_chats');
           }
         }
       }
@@ -209,8 +242,10 @@ io.on('connection', (socket) => {
       userSockets.set(userId, socket.id);
       socket.join(chatId);
       
+      // Уведомляем других участников
       socket.to(chatId).emit('user_joined', { chatId, userId });
       
+      // Обновляем счетчик онлайн
       io.to(chatId).emit('online_users', {
         chatId,
         users: chat.participants
@@ -237,11 +272,14 @@ io.on('connection', (socket) => {
           chat.participants.splice(userIndex, 1);
           
           if (chat.participants.length === 0) {
+            // Удаляем чат если не осталось участников
             activeChats.delete(chatId);
             chatMessages.delete(chatId);
             io.emit('chat_removed', { chatId });
-            io.emit('chats_updated');
           }
+          
+          // Обновляем всех клиентов
+          io.emit('force_refresh_chats');
         }
         
         socket.leave(chatId);
@@ -265,8 +303,9 @@ io.on('connection', (socket) => {
   
   // Отключение
   socket.on('disconnect', () => {
-    console.log('🔌 Пользователь отключен:', socket.id);
+    console.log('🔌 Отключение:', socket.id);
     
+    // Удаляем пользователя из userSockets
     for (let [userId, socketId] of userSockets.entries()) {
       if (socketId === socket.id) {
         userSockets.delete(userId);
@@ -274,21 +313,30 @@ io.on('connection', (socket) => {
       }
     }
 
-    io.emit('chats_updated');
+    // Обновляем статистику
+    io.emit('server_stats', {
+      online_users: userSockets.size,
+      total_chats: activeChats.size
+    });
   });
 });
 
-// Очистка старых чатов
+// Автоматическая синхронизация каждые 10 секунд
+setInterval(() => {
+  io.emit('force_refresh_chats');
+}, 10000);
+
+// Очистка старых чатов (24 часа)
 setInterval(() => {
   const now = Date.now();
-  const hourAgo = now - (60 * 60 * 1000);
+  const dayAgo = now - (24 * 60 * 60 * 1000);
   
   let cleanedCount = 0;
   
   for (let [chatId, chat] of activeChats.entries()) {
     const chatTime = new Date(chat.created_at).getTime();
     
-    if (chatTime < hourAgo) {
+    if (chatTime < dayAgo) {
       activeChats.delete(chatId);
       chatMessages.delete(chatId);
       io.emit('chat_removed', { chatId });
@@ -298,15 +346,12 @@ setInterval(() => {
   }
 
   if (cleanedCount > 0) {
-    io.emit('chats_updated');
+    io.emit('force_refresh_chats');
+    console.log(`🔄 Синхронизация после удаления ${cleanedCount} чатов`);
   }
-}, 10 * 60 * 1000);
-
-// Периодическая синхронизация
-setInterval(() => {
-  io.emit('chats_updated');
-}, 30000);
+}, 60 * 60 * 1000);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
+  console.log(`🔄 Авто-синхронизация: каждые 10 секунд`);
 });
