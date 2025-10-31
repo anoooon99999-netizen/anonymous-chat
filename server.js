@@ -60,11 +60,10 @@ app.post('/api/chats', (req, res) => {
     activeChats.set(chatId, chat);
     chatMessages.set(chatId, []);
     
-    console.log(`🆕 Новый чат создан: ${chatId}, тема: ${theme}`);
-    console.log(`📊 Всего чатов в системе: ${activeChats.size}`);
+    console.log(`🆕 Новый чат создан: ${chatId}, тема: ${theme}, создатель: ${user_id}`);
     
-    // ВАЖНО: Рассылаем всем клиентам полную информацию о новом чате
-    io.emit('new_chat_created', {
+    // ВАЖНО: Рассылаем всем клиентам КРОМЕ создателя
+    socket.broadcast.emit('new_chat_created', {
       id: chat.id,
       user_gender: chat.user_gender,
       user_age: chat.user_age,
@@ -74,11 +73,12 @@ app.post('/api/chats', (req, res) => {
       theme: chat.theme,
       created_at: chat.created_at,
       participants_count: chat.participants.length,
-      status: chat.status
+      status: chat.status,
+      creator_id: chat.creator_id // Добавляем ID создателя
     });
 
-    // ВАЖНО: Принудительно обновляем всех клиентов
-    io.emit('force_refresh_chats');
+    // ВАЖНО: Принудительно обновляем всех клиентов КРОМЕ создателя
+    socket.broadcast.emit('force_refresh_chats');
     
     res.json(chat);
   } catch (error) {
@@ -90,8 +90,17 @@ app.post('/api/chats', (req, res) => {
 // Получение списка чатов
 app.get('/api/chats', (req, res) => {
   try {
+    const { user_id } = req.query; // ВАЖНО: получаем ID пользователя
+    
+    console.log(`📊 Запрос чатов от пользователя: ${user_id}`);
+    
     const chats = Array.from(activeChats.values())
-      .filter(chat => chat.status === 'waiting')
+      .filter(chat => {
+        // ВАЖНО: показываем только чаты, где пользователь НЕ создатель
+        const isNotCreator = chat.creator_id !== user_id;
+        const isWaiting = chat.status === 'waiting';
+        return isNotCreator && isWaiting;
+      })
       .map(chat => ({
         id: chat.id,
         user_gender: chat.user_gender,
@@ -102,10 +111,11 @@ app.get('/api/chats', (req, res) => {
         theme: chat.theme,
         created_at: chat.created_at,
         participants_count: chat.participants.length,
-        status: chat.status
+        status: chat.status,
+        creator_id: chat.creator_id // Добавляем для отладки
       }));
     
-    console.log(`📊 Отправляем ${chats.length} активных чатов клиенту`);
+    console.log(`📊 Отправляем ${chats.length} чатов пользователю ${user_id}`);
     console.log(`🎯 Темы чатов:`, [...new Set(chats.map(chat => chat.theme))]);
     
     res.json(chats);
@@ -167,19 +177,31 @@ app.get('/api/messages', (req, res) => {
   }
 });
 
-// Статистика сервера
-app.get('/api/stats', (req, res) => {
+// Получение моих чатов (для создателя)
+app.get('/api/my_chats', (req, res) => {
   try {
-    const stats = {
-      online_users: userSockets.size,
-      active_chats: Array.from(activeChats.values()).filter(chat => chat.status === 'active').length,
-      waiting_chats: Array.from(activeChats.values()).filter(chat => chat.status === 'waiting').length,
-      total_chats: activeChats.size
-    };
+    const { user_id } = req.query;
     
-    res.json(stats);
+    const myChats = Array.from(activeChats.values())
+      .filter(chat => chat.creator_id === user_id && chat.status === 'waiting')
+      .map(chat => ({
+        id: chat.id,
+        user_gender: chat.user_gender,
+        user_age: chat.user_age,
+        partner_gender: chat.partner_gender,
+        min_age: chat.min_age,
+        max_age: chat.max_age,
+        theme: chat.theme,
+        created_at: chat.created_at,
+        participants_count: chat.participants.length,
+        status: chat.status,
+        is_my_chat: true
+      }));
+    
+    console.log(`📱 Мои чаты пользователя ${user_id}: ${myChats.length}`);
+    res.json(myChats);
   } catch (error) {
-    console.error('❌ Ошибка получения статистики:', error);
+    console.error('❌ Ошибка получения моих чатов:', error);
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
@@ -195,13 +217,15 @@ io.on('connection', (socket) => {
   });
 
   // Синхронизация чатов
-  socket.on('request_chats_update', () => {
-    console.log('🔄 Запрос обновления чатов от:', socket.id);
-    socket.emit('force_refresh_chats');
+  socket.on('request_chats_update', (data) => {
+    const { user_id } = data;
+    console.log('🔄 Запрос обновления чатов от:', user_id);
+    socket.broadcast.emit('force_refresh_chats');
   });
 
-  socket.on('chats_updated', () => {
-    socket.broadcast.emit('force_refresh_chats');
+  socket.on('chats_updated', (data) => {
+    const { user_id } = data;
+    socket.broadcast.emit('force_refresh_chats', { exclude_user: user_id });
   });
 
   // Присоединение к чату
@@ -230,7 +254,7 @@ io.on('connection', (socket) => {
             io.emit('chat_activated', { chatId });
             io.to(chatId).emit('chat_activated', { chatId });
             
-            // Удаляем чат из списка ожидания
+            // Удаляем чат из списка ожидания для всех
             io.emit('chat_removed', { chatId });
             
             // Обновляем всех клиентов
