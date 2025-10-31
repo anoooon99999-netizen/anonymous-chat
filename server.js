@@ -52,16 +52,16 @@ app.post('/api/chats', (req, res) => {
       partner_gender,
       min_age: parseInt(min_age),
       max_age: parseInt(max_age),
-      theme, // ВАЖНО: сохраняем тему как есть
-      participants: [user_id],
+      theme,
+      participants: [user_id], // Только создатель изначально
       created_at: new Date().toISOString(),
-      status: 'waiting'
+      status: 'waiting' // ВАЖНО: статус "ожидание", а не "активный"
     };
     
     activeChats.set(chatId, chat);
     chatMessages.set(chatId, []);
     
-    console.log(`🆕 New chat created: ${chatId}, theme: ${theme}`);
+    console.log(`🆕 New chat created: ${chatId}, theme: ${theme}, status: waiting`);
     
     // Рассылаем всем клиентам о новом чате
     io.emit('new_chat_created', {
@@ -71,9 +71,10 @@ app.post('/api/chats', (req, res) => {
       partner_gender: chat.partner_gender,
       min_age: chat.min_age,
       max_age: chat.max_age,
-      theme: chat.theme, // ВАЖНО: отправляем тему
+      theme: chat.theme,
       created_at: chat.created_at,
-      participants_count: chat.participants.length
+      participants_count: chat.participants.length,
+      status: chat.status // ВАЖНО: отправляем статус
     });
 
     // Синхронизация - принудительное обновление чатов у всех клиентов
@@ -91,7 +92,7 @@ app.post('/api/chats', (req, res) => {
 app.get('/api/chats', (req, res) => {
   try {
     const chats = Array.from(activeChats.values())
-      .filter(chat => chat.status === 'waiting')
+      .filter(chat => chat.status === 'waiting') // ВАЖНО: только ожидающие чаты
       .map(chat => ({
         id: chat.id,
         user_gender: chat.user_gender,
@@ -99,12 +100,13 @@ app.get('/api/chats', (req, res) => {
         partner_gender: chat.partner_gender,
         min_age: chat.min_age,
         max_age: chat.max_age,
-        theme: chat.theme, // ВАЖНО: возвращаем тему
+        theme: chat.theme,
         created_at: chat.created_at,
-        participants_count: chat.participants.length
+        participants_count: chat.participants.length,
+        status: chat.status
       }));
     
-    console.log(`📊 Sending ${chats.length} chats to client`);
+    console.log(`📊 Sending ${chats.length} waiting chats to client`);
     console.log(`🎯 Available themes:`, [...new Set(chats.map(chat => chat.theme))]);
     res.json(chats);
   } catch (error) {
@@ -123,8 +125,10 @@ app.post('/api/messages', (req, res) => {
     }
     
     const chat = activeChats.get(chat_id);
-    if (!chat.participants.includes(user_id)) {
-      return res.status(403).json({ error: 'Not a participant' });
+    
+    // Проверяем, что чат активен и пользователь является участником
+    if (chat.status !== 'active' || !chat.participants.includes(user_id)) {
+      return res.status(403).json({ error: 'Chat is not active or user is not a participant' });
     }
     
     const messageObj = {
@@ -224,26 +228,27 @@ io.on('connection', (socket) => {
       
       const chat = activeChats.get(chatId);
       
-      // Проверяем можно ли присоединиться
-      if (chat.participants.length >= 2 && !chat.participants.includes(userId)) {
-        socket.emit('error', { message: 'Chat is full' });
-        return;
-      }
-      
-      // Добавляем пользователя если его нет
-      if (!chat.participants.includes(userId)) {
-        chat.participants.push(userId);
-        
-        // Если теперь 2 участника - активируем чат
-        if (chat.participants.length === 2) {
-          chat.status = 'active';
+      // Если чат в ожидании и пользователь не создатель
+      if (chat.status === 'waiting' && chat.creator_id !== userId) {
+        // Добавляем пользователя как второго участника
+        if (chat.participants.length < 2) {
+          chat.participants.push(userId);
           
-          // Уведомляем всех об активации чата
-          io.emit('chat_activated', { chatId });
-          io.to(chatId).emit('chat_activated', { chatId });
+          // Активируем чат когда есть 2 участника
+          if (chat.participants.length === 2) {
+            chat.status = 'active';
+            console.log(`🎉 Chat activated: ${chatId}`);
+            
+            // Уведомляем всех об активации чата
+            io.emit('chat_activated', { chatId });
+            io.to(chatId).emit('chat_activated', { chatId });
 
-          // Синхронизация - обновляем список чатов у всех
-          io.emit('chats_updated');
+            // Удаляем чат из списка ожидания для всех клиентов
+            io.emit('chat_removed', { chatId });
+            
+            // Синхронизация - обновляем список чатов у всех
+            io.emit('chats_updated');
+          }
         }
       }
       
@@ -256,16 +261,23 @@ io.on('connection', (socket) => {
       // Уведомляем о новом участнике
       socket.to(chatId).emit('user_joined', {
         chatId,
-        participants: chat.participants.length
+        userId: userId
       });
       
       // Отправляем текущих онлайн пользователей
       io.to(chatId).emit('online_users', {
         chatId,
-        count: chat.participants.length
+        users: chat.participants
       });
       
-      console.log(`👥 User joined chat ${chatId}`);
+      console.log(`👥 User ${userId} joined chat ${chatId}, status: ${chat.status}`);
+      
+      // Если чат активен, показываем сообщения
+      if (chat.status === 'active') {
+        const messages = chatMessages.get(chatId) || [];
+        socket.emit('chat_messages', { chatId, messages });
+      }
+      
     } catch (error) {
       console.error('❌ Error joining chat:', error);
       socket.emit('error', { message: 'Internal server error' });
@@ -294,19 +306,23 @@ io.on('connection', (socket) => {
             
             // Синхронизация - обновляем список чатов
             io.emit('chats_updated');
+          } else if (chat.participants.length === 1 && chat.status === 'active') {
+            // Если остался один участник в активном чате - переводим в ожидание
+            chat.status = 'waiting';
+            io.emit('chats_updated');
           }
         }
         
         socket.leave(chatId);
-        // Уведомляем без идентификации пользователя
-        socket.to(chatId).emit('user_left', { chatId });
+        // Уведомляем о выходе пользователя
+        socket.to(chatId).emit('user_left', { chatId, userId });
       }
     } catch (error) {
       console.error('❌ Error leaving chat:', error);
     }
   });
   
-  // Индикатор печати (АНОНИМНЫЙ)
+  // Индикатор печати
   socket.on('typing_start', (data) => {
     const { chatId } = data;
     socket.to(chatId).emit('typing_start', { chatId });
@@ -325,6 +341,13 @@ io.on('connection', (socket) => {
     for (let [userId, socketId] of userSockets.entries()) {
       if (socketId === socket.id) {
         userSockets.delete(userId);
+        
+        // Уведомляем о выходе пользователя из всех чатов
+        for (let [chatId, chat] of activeChats.entries()) {
+          if (chat.participants.includes(userId)) {
+            socket.to(chatId).emit('user_left', { chatId, userId });
+          }
+        }
         break;
       }
     }
