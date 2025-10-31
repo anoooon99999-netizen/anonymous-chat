@@ -62,8 +62,9 @@ app.post('/api/chats', (req, res) => {
     
     console.log(`🆕 Новый чат создан: ${chatId}, тема: ${theme}, создатель: ${user_id}`);
     
+    // ВАЖНО: Используем io.emit вместо socket.emit
     // Рассылаем всем клиентам КРОМЕ создателя
-    socket.broadcast.emit('new_chat_created', {
+    io.emit('new_chat_created', {
       id: chat.id,
       user_gender: chat.user_gender,
       user_age: chat.user_age,
@@ -77,8 +78,8 @@ app.post('/api/chats', (req, res) => {
       creator_id: chat.creator_id
     });
 
-    // Принудительно обновляем всех клиентов КРОМЕ создателя
-    socket.broadcast.emit('force_refresh_chats');
+    // Принудительно обновляем всех клиентов
+    io.emit('force_refresh_chats');
     
     res.json(chat);
   } catch (error) {
@@ -216,7 +217,7 @@ io.on('connection', (socket) => {
 
   socket.on('chats_updated', (data) => {
     const { user_id } = data;
-    socket.broadcast.emit('force_refresh_chats', { exclude_user: user_id });
+    socket.broadcast.emit('force_refresh_chats');
   });
 
   socket.on('new_chat_created_global', () => {
