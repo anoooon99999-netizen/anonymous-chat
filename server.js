@@ -52,7 +52,7 @@ app.post('/api/chats', (req, res) => {
       partner_gender,
       min_age: parseInt(min_age),
       max_age: parseInt(max_age),
-      theme,
+      theme, // ВАЖНО: сохраняем тему как есть
       participants: [user_id],
       created_at: new Date().toISOString(),
       status: 'waiting'
@@ -61,7 +61,7 @@ app.post('/api/chats', (req, res) => {
     activeChats.set(chatId, chat);
     chatMessages.set(chatId, []);
     
-    console.log(`🆕 New chat created: ${chatId}`);
+    console.log(`🆕 New chat created: ${chatId}, theme: ${theme}`);
     
     // Рассылаем всем клиентам о новом чате
     io.emit('new_chat_created', {
@@ -71,12 +71,12 @@ app.post('/api/chats', (req, res) => {
       partner_gender: chat.partner_gender,
       min_age: chat.min_age,
       max_age: chat.max_age,
-      theme: chat.theme,
+      theme: chat.theme, // ВАЖНО: отправляем тему
       created_at: chat.created_at,
       participants_count: chat.participants.length
     });
 
-    // ДОБАВЛЕНО: Синхронизация - принудительное обновление чатов у всех клиентов
+    // Синхронизация - принудительное обновление чатов у всех клиентов
     io.emit('chats_updated');
     io.emit('force_chats_refresh');
     
@@ -99,12 +99,13 @@ app.get('/api/chats', (req, res) => {
         partner_gender: chat.partner_gender,
         min_age: chat.min_age,
         max_age: chat.max_age,
-        theme: chat.theme,
+        theme: chat.theme, // ВАЖНО: возвращаем тему
         created_at: chat.created_at,
         participants_count: chat.participants.length
       }));
     
     console.log(`📊 Sending ${chats.length} chats to client`);
+    console.log(`🎯 Available themes:`, [...new Set(chats.map(chat => chat.theme))]);
     res.json(chats);
   } catch (error) {
     console.error('❌ Error fetching chats:', error);
@@ -194,7 +195,7 @@ app.get('/api/stats', (req, res) => {
 io.on('connection', (socket) => {
   console.log('🔗 User connected:', socket.id);
   
-  // ДОБАВЛЕНО: Синхронизация между вкладками
+  // Синхронизация между вкладками
   socket.on('chats_loaded', () => {
     console.log('🔄 Client loaded chats, notifying others');
     socket.broadcast.emit('chats_updated');
@@ -241,7 +242,7 @@ io.on('connection', (socket) => {
           io.emit('chat_activated', { chatId });
           io.to(chatId).emit('chat_activated', { chatId });
 
-          // ДОБАВЛЕНО: Синхронизация - обновляем список чатов у всех
+          // Синхронизация - обновляем список чатов у всех
           io.emit('chats_updated');
         }
       }
@@ -252,13 +253,13 @@ io.on('connection', (socket) => {
       // Присоединяем сокет к комнате чата
       socket.join(chatId);
       
-      // Уведомляем о новом участнике (БЕЗ ИМЕНИ)
+      // Уведомляем о новом участнике
       socket.to(chatId).emit('user_joined', {
         chatId,
         participants: chat.participants.length
       });
       
-      // Отправляем текущих онлайн пользователей (ТОЛЬКО КОЛИЧЕСТВО)
+      // Отправляем текущих онлайн пользователей
       io.to(chatId).emit('online_users', {
         chatId,
         count: chat.participants.length
@@ -291,7 +292,7 @@ io.on('connection', (socket) => {
             // Уведомляем всех об удалении чата
             io.emit('chat_removed', { chatId });
             
-            // ДОБАВЛЕНО: Синхронизация - обновляем список чатов
+            // Синхронизация - обновляем список чатов
             io.emit('chats_updated');
           }
         }
@@ -328,7 +329,7 @@ io.on('connection', (socket) => {
       }
     }
 
-    // ДОБАВЛЕНО: Уведомляем о возможных изменениях в чатах
+    // Уведомляем о возможных изменениях в чатах
     io.emit('chats_updated');
   });
 });
@@ -353,14 +354,14 @@ setInterval(() => {
     }
   }
 
-  // ДОБАВЛЕНО: Если были удалены чаты - синхронизируем клиентов
+  // Если были удалены чаты - синхронизируем клиентов
   if (cleanedCount > 0) {
     io.emit('chats_updated');
     console.log(`🔄 Syncing clients after cleaning ${cleanedCount} old chats`);
   }
 }, 10 * 60 * 1000);
 
-// ДОБАВЛЕНО: Периодическая синхронизация всех клиентов (каждые 30 секунд)
+// Периодическая синхронизация всех клиентов (каждые 30 секунд)
 setInterval(() => {
   console.log('🔄 Periodic sync: refreshing all clients');
   io.emit('chats_updated');
