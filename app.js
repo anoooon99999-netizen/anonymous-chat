@@ -993,3 +993,81 @@ function deleteAccount() {
 
 // Запуск приложения
 document.addEventListener('DOMContentLoaded', initApp);
+// ДОБАВЬТЕ ЭТИ ФУНКЦИИ В КОНЕЦ app.js
+
+// Функция для отмены ожидания
+function cancelWaiting() {
+    showScreen('chatsScreen');
+    showNotification('Поиск собеседника отменен');
+}
+
+// Функция для кнопки "Любой" пол
+function toggleOption(element) {
+    const parent = element.parentElement;
+    const options = parent.querySelectorAll('.option-button');
+    
+    // Если это кнопка "Любой", делаем ее эксклюзивной
+    if (element.textContent === 'Любой') {
+        options.forEach(btn => btn.classList.remove('active'));
+        element.classList.add('active');
+    } else {
+        // Для других кнопок убираем активность с "Любой"
+        const anyButton = Array.from(options).find(btn => btn.textContent === 'Любой');
+        if (anyButton) {
+            anyButton.classList.remove('active');
+        }
+        element.classList.add('active');
+    }
+}
+
+// Функция для обновления слайдеров возраста
+function updateAgeRange() {
+    const minSlider = document.getElementById('minAgeSlider');
+    const maxSlider = document.getElementById('maxAgeSlider');
+    
+    if (!minSlider || !maxSlider) return;
+    
+    let minAge = parseInt(minSlider.value);
+    let maxAge = parseInt(maxSlider.value);
+    
+    // Корректируем значения если min > max
+    if (minAge > maxAge) {
+        minAge = maxAge;
+        minSlider.value = minAge;
+    }
+    
+    const minAgeValue = document.getElementById('minAgeValue');
+    const maxAgeValue = document.getElementById('maxAgeValue');
+    const minAgeInput = document.getElementById('minAge');
+    const maxAgeInput = document.getElementById('maxAge');
+    
+    if (minAgeValue) minAgeValue.textContent = minAge;
+    if (maxAgeValue) maxAgeValue.textContent = maxAge;
+    if (minAgeInput) minAgeInput.value = minAge;
+    if (maxAgeInput) maxAgeInput.value = maxAge;
+}
+
+// Инициализация слайдеров при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    // Инициализируем слайдеры
+    const minSlider = document.getElementById('minAgeSlider');
+    const maxSlider = document.getElementById('maxAgeSlider');
+    
+    if (minSlider && maxSlider) {
+        minSlider.addEventListener('input', updateAgeRange);
+        maxSlider.addEventListener('input', updateAgeRange);
+        
+        // Устанавливаем начальные значения
+        updateAgeRange();
+    }
+    
+    // Инициализируем обработчики для модального окна
+    const modal = document.getElementById('createChatModal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeCreateChatModal();
+            }
+        });
+    }
+});
