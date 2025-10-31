@@ -510,6 +510,9 @@ function createChatWithParams(params) {
 }
 
 async function startChat(chat) {
+    console.log('🚀 Starting chat:', chat.id);
+    
+    // Очищаем текущий чат
     currentChat = null;
     
     const messagesContainer = document.getElementById('messagesContainer');
@@ -517,7 +520,7 @@ async function startChat(chat) {
         messagesContainer.innerHTML = `
             <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
                 <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
-                <div>Загружаем чат...</div>
+                <div>Подключаемся к чату...</div>
             </div>
         `;
     }
@@ -532,7 +535,27 @@ async function startChat(chat) {
         socket.emit('join_chat', { chatId: chat.id, userId: vkUser?.id });
     }
     
-    await loadMessages(chat.id);
+    // Загружаем сообщения только если чат активен
+    try {
+        const response = await fetch(API_URL + '/api/chats');
+        const allChats = await response.json();
+        const currentChatData = allChats.find(c => c.id === chat.id);
+        
+        if (currentChatData && currentChatData.status === 'active') {
+            await loadMessages(chat.id);
+        } else {
+            // Если чат еще в ожидании, показываем соответствующее сообщение
+            messagesContainer.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                    <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+                    <div>Ожидаем подключения собеседника...</div>
+                    <div style="font-size: 14px; margin-top: 8px;">Чат будет активирован когда присоединится второй участник</div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error checking chat status:', error);
+    }
     
     setTimeout(() => {
         const input = document.getElementById('messageInput');
