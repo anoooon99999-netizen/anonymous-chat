@@ -62,7 +62,7 @@ app.post('/api/chats', (req, res) => {
     
     console.log(`🆕 Новый чат создан: ${chatId}, тема: ${theme}, создатель: ${user_id}`);
     
-    // ВАЖНО: Рассылаем всем клиентам КРОМЕ создателя
+    // Рассылаем всем клиентам КРОМЕ создателя
     socket.broadcast.emit('new_chat_created', {
       id: chat.id,
       user_gender: chat.user_gender,
@@ -74,10 +74,10 @@ app.post('/api/chats', (req, res) => {
       created_at: chat.created_at,
       participants_count: chat.participants.length,
       status: chat.status,
-      creator_id: chat.creator_id // Добавляем ID создателя
+      creator_id: chat.creator_id
     });
 
-    // ВАЖНО: Принудительно обновляем всех клиентов КРОМЕ создателя
+    // Принудительно обновляем всех клиентов КРОМЕ создателя
     socket.broadcast.emit('force_refresh_chats');
     
     res.json(chat);
@@ -87,16 +87,15 @@ app.post('/api/chats', (req, res) => {
   }
 });
 
-// Получение списка чатов
+// Получение списка чатов (ТОЛЬКО ЧУЖИЕ)
 app.get('/api/chats', (req, res) => {
   try {
-    const { user_id } = req.query; // ВАЖНО: получаем ID пользователя
+    const { user_id } = req.query;
     
     console.log(`📊 Запрос чатов от пользователя: ${user_id}`);
     
     const chats = Array.from(activeChats.values())
       .filter(chat => {
-        // ВАЖНО: показываем только чаты, где пользователь НЕ создатель
         const isNotCreator = chat.creator_id !== user_id;
         const isWaiting = chat.status === 'waiting';
         return isNotCreator && isWaiting;
@@ -112,12 +111,10 @@ app.get('/api/chats', (req, res) => {
         created_at: chat.created_at,
         participants_count: chat.participants.length,
         status: chat.status,
-        creator_id: chat.creator_id // Добавляем для отладки
+        creator_id: chat.creator_id
       }));
     
     console.log(`📊 Отправляем ${chats.length} чатов пользователю ${user_id}`);
-    console.log(`🎯 Темы чатов:`, [...new Set(chats.map(chat => chat.theme))]);
-    
     res.json(chats);
   } catch (error) {
     console.error('❌ Ошибка получения чатов:', error);
@@ -210,12 +207,6 @@ app.get('/api/my_chats', (req, res) => {
 io.on('connection', (socket) => {
   console.log('🔗 Новое подключение:', socket.id);
   
-  // Отправляем текущую статистику при подключении
-  socket.emit('server_stats', {
-    online_users: userSockets.size,
-    total_chats: activeChats.size
-  });
-
   // Синхронизация чатов
   socket.on('request_chats_update', (data) => {
     const { user_id } = data;
@@ -226,6 +217,10 @@ io.on('connection', (socket) => {
   socket.on('chats_updated', (data) => {
     const { user_id } = data;
     socket.broadcast.emit('force_refresh_chats', { exclude_user: user_id });
+  });
+
+  socket.on('new_chat_created_global', () => {
+    socket.broadcast.emit('force_refresh_chats');
   });
 
   // Присоединение к чату
@@ -296,13 +291,11 @@ io.on('connection', (socket) => {
           chat.participants.splice(userIndex, 1);
           
           if (chat.participants.length === 0) {
-            // Удаляем чат если не осталось участников
             activeChats.delete(chatId);
             chatMessages.delete(chatId);
             io.emit('chat_removed', { chatId });
           }
           
-          // Обновляем всех клиентов
           io.emit('force_refresh_chats');
         }
         
@@ -329,19 +322,12 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('🔌 Отключение:', socket.id);
     
-    // Удаляем пользователя из userSockets
     for (let [userId, socketId] of userSockets.entries()) {
       if (socketId === socket.id) {
         userSockets.delete(userId);
         break;
       }
     }
-
-    // Обновляем статистику
-    io.emit('server_stats', {
-      online_users: userSockets.size,
-      total_chats: activeChats.size
-    });
   });
 });
 
@@ -371,11 +357,9 @@ setInterval(() => {
 
   if (cleanedCount > 0) {
     io.emit('force_refresh_chats');
-    console.log(`🔄 Синхронизация после удаления ${cleanedCount} чатов`);
   }
 }, 60 * 60 * 1000);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
-  console.log(`🔄 Авто-синхронизация: каждые 10 секунд`);
 });
