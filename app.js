@@ -42,7 +42,7 @@ async function initApp() {
             last_name: ''
         };
         updateUserInterface(vkUser);
-        showNotification('Анонимный режим - можно создавать чаты');
+        showNotification('Анонимный режим');
     }
 
     initSocket();
@@ -51,7 +51,6 @@ async function initApp() {
     updateProfileStats();
     setupEventListeners();
     
-    // Автообновление чатов каждые 5 секунд
     setInterval(() => {
         if (!currentChat) {
             loadAndRenderChats();
@@ -82,7 +81,7 @@ function initSocket() {
         socket = io(SOCKET_URL);
         
         socket.on('connect', () => {
-            console.log('✅ Connected to server');
+            console.log('✅ Подключен к серверу');
             if (currentChat) {
                 socket.emit('join_chat', { chatId: currentChat.id, userId: vkUser?.id });
             }
@@ -153,8 +152,10 @@ function initSocket() {
                 timestamp: new Date(chat.created_at).getTime()
             };
             
+            // Добавляем чат в общий список
             allChats.unshift(newChat);
             
+            // Обновляем список если тема совпадает
             if (chat.theme === currentTheme) {
                 renderChatsList();
                 showNotification('📢 Создан новый чат в разделе "' + chat.theme + '"');
@@ -168,12 +169,7 @@ function initSocket() {
         });
         
         socket.on('chats_updated', () => {
-            console.log('🔄 Синхронизация: получено обновление чатов');
-            loadAndRenderChats();
-        });
-        
-        socket.on('force_chats_refresh', () => {
-            console.log('🔄 Принудительное обновление чатов');
+            console.log('🔄 Синхронизация: обновление чатов');
             loadAndRenderChats();
         });
         
@@ -204,7 +200,7 @@ function handleTyping() {
     }, 1000);
 }
 
-// Функция для загрузки чатов с сервера
+// Загрузка чатов с сервера
 window.loadChatsFromServer = async function() {
     try {
         console.log('🌐 Запрос чатов с сервера...');
@@ -215,12 +211,16 @@ window.loadChatsFromServer = async function() {
         const chats = await response.json();
         console.log('📊 Получено чатов с сервера:', chats.length);
         
-        // ПРАВИЛЬНОЕ преобразование данных с сервера
+        // Отладочный вывод
+        chats.forEach(chat => {
+            console.log(`🔍 Чат ${chat.id}: тема="${chat.theme}"`);
+        });
+        
         return chats.map(chat => ({
             id: chat.id,
             gender: chat.user_gender + ', ' + chat.user_age,
             lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
-            theme: chat.theme, // ВАЖНО: используем theme с сервера
+            theme: chat.theme,
             participants_count: chat.participants_count,
             timestamp: new Date(chat.created_at).getTime()
         }));
@@ -251,12 +251,8 @@ function renderChatsList() {
     
     container.innerHTML = '';
 
-    // ИСПРАВЛЕННАЯ ФИЛЬТРАЦИЯ: правильное сравнение тем
-    const filteredChats = allChats.filter(chat => {
-        const matchesTheme = chat.theme === currentTheme;
-        console.log(`🔍 Чат "${chat.theme}" === "${currentTheme}": ${matchesTheme}`);
-        return matchesTheme;
-    });
+    // ФИЛЬТРАЦИЯ ПО ТЕМЕ
+    const filteredChats = allChats.filter(chat => chat.theme === currentTheme);
     
     console.log(`🎯 Отображаем чаты для темы "${currentTheme}":`, filteredChats.length);
     console.log('📋 Все доступные темы:', [...new Set(allChats.map(chat => chat.theme))]);
@@ -342,12 +338,7 @@ async function createChat() {
     const maxAge = document.getElementById('maxAge').value;
 
     console.log('📊 Данные для создания чата:', { 
-        myGender, 
-        myAge, 
-        partnerGender, 
-        minAge, 
-        maxAge, 
-        theme: currentTheme 
+        myGender, myAge, partnerGender, minAge, maxAge, theme: currentTheme 
     });
 
     if (!myAge || myAge < 18 || myAge > 80) {
@@ -360,7 +351,6 @@ async function createChat() {
         return;
     }
 
-    // Сохраняем параметры
     lastChatParams = {
         myGender: myGender,
         myAge: parseInt(myAge),
@@ -377,7 +367,7 @@ async function createChat() {
         partner_gender: partnerGender,
         min_age: parseInt(minAge),
         max_age: parseInt(maxAge),
-        theme: currentTheme // ВАЖНО: передаем текущую тему
+        theme: currentTheme
     };
 
     console.log('📨 Отправляем данные на сервер:', chatData);
@@ -406,7 +396,7 @@ async function createChat() {
             showNotification('✅ Чат создан! Ожидаем собеседника...');
             closeCreateChatModal();
             
-            // УВЕДОМЛЯЕМ ВСЕХ О НОВОМ ЧАТЕ ДЛЯ СИНХРОНИЗАЦИИ
+            // Уведомляем всех о новом чате
             if (socket) {
                 socket.emit('new_chat_created_global');
             }
@@ -414,6 +404,7 @@ async function createChat() {
             // Обновляем список чатов
             await loadAndRenderChats();
             
+            // Автоматически переходим в созданный чат
             setTimeout(() => {
                 const newChat = {
                     id: result.id,
@@ -437,82 +428,9 @@ async function createChat() {
     }
 }
 
-// Функция создания чата с параметрами
-function createChatWithParams(params) {
-    if (currentChat && socket) {
-        socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
-    }
-    
-    currentChat = null;
-    
-    const messagesContainer = document.getElementById('messagesContainer');
-    if (messagesContainer) {
-        messagesContainer.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
-                <div>Создаем новый чат...</div>
-            </div>
-        `;
-    }
-    
-    const chatData = {
-        user_id: vkUser?.id || 'anonymous',
-        user_gender: params.myGender,
-        user_age: params.myAge,
-        partner_gender: params.partnerGender,
-        min_age: params.minAge,
-        max_age: params.maxAge,
-        theme: params.theme
-    };
-
-    fetch(API_URL + '/api/chats', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(chatData)
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Ошибка сервера: ' + response.status);
-        }
-        return response.json();
-    })
-    .then(result => {
-        console.log('✅ Новый чат создан:', result);
-        
-        userStats.createdChats++;
-        saveUserStats();
-        updateProfileStats();
-        showNotification('✅ Новый чат создан! Ожидаем собеседника...');
-        
-        // УВЕДОМЛЯЕМ О НОВОМ ЧАТЕ
-        if (socket) {
-            socket.emit('new_chat_created_global');
-        }
-        
-        const newChat = {
-            id: result.id,
-            gender: params.myGender + ', ' + params.myAge,
-            lookingFor: params.partnerGender + ', ' + params.minAge + '-' + params.maxAge,
-            theme: params.theme,
-            participants_count: 1,
-            timestamp: Date.now()
-        };
-        
-        startChat(newChat);
-    })
-    .catch(error => {
-        console.error('❌ Ошибка создания чата:', error);
-        showNotification('❌ Ошибка создания чата');
-        showScreen('chatsScreen');
-    });
-}
-
 async function startChat(chat) {
-    console.log('🚀 Starting chat:', chat.id);
+    console.log('🚀 Начинаем чат:', chat.id);
     
-    // Очищаем текущий чат
     currentChat = null;
     
     const messagesContainer = document.getElementById('messagesContainer');
@@ -535,27 +453,7 @@ async function startChat(chat) {
         socket.emit('join_chat', { chatId: chat.id, userId: vkUser?.id });
     }
     
-    // Загружаем сообщения только если чат активен
-    try {
-        const response = await fetch(API_URL + '/api/chats');
-        const allChats = await response.json();
-        const currentChatData = allChats.find(c => c.id === chat.id);
-        
-        if (currentChatData && currentChatData.status === 'active') {
-            await loadMessages(chat.id);
-        } else {
-            // Если чат еще в ожидании, показываем соответствующее сообщение
-            messagesContainer.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                    <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
-                    <div>Ожидаем подключения собеседника...</div>
-                    <div style="font-size: 14px; margin-top: 8px;">Чат будет активирован когда присоединится второй участник</div>
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Error checking chat status:', error);
-    }
+    await loadMessages(chat.id);
     
     setTimeout(() => {
         const input = document.getElementById('messageInput');
@@ -563,7 +461,6 @@ async function startChat(chat) {
     }, 300);
 }
 
-// Функция для эмодзи в заголовке чата
 function getChatEmoji(theme) {
     const emojiMap = {
         'Общение': '💬',
@@ -782,7 +679,7 @@ function setupEventListeners() {
     }
 }
 
-// Функции для чата
+// Функции для кнопок
 function addToFriends() {
     showNotification('✅ Пользователь добавлен в друзья!');
     userStats.friends++;
@@ -794,7 +691,6 @@ function reportUser() {
     showNotification('⚠️ Жалоба отправлена модераторам');
 }
 
-// Простые функции для кнопок
 function enableNotifications() {
     showNotification('🔔 Уведомления включены!');
 }
@@ -828,117 +724,14 @@ function openNotificationsSettings() {
     showNotification('Настройки уведомлений в разработке');
 }
 
-// Настройки конфиденциальности
 function openPrivacySettings() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'block';
-    modal.innerHTML = `
-        <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
-            <div class="modal-header">
-                <div class="modal-title">🔒 Конфиденциальность и Безопасность</div>
-                <button class="close-button" onclick="this.closest('.modal-overlay').remove()">×</button>
-            </div>
-            
-            <div style="padding: 0 20px 20px;">
-                <div class="privacy-section">
-                    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 18px;">📱 Настройки приватности</h3>
-                    
-                    <div class="privacy-item">
-                        <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
-                            <span style="font-weight: 600;">Скрыть мой профиль</span>
-                            <label class="switch">
-                                <input type="checkbox" checked>
-                                <span class="slider-switch"></span>
-                            </label>
-                        </div>
-                        <p style="color: var(--text-secondary); font-size: 14px;">Ваш профиль не будет отображаться в общем списке пользователей</p>
-                    </div>
-                    
-                    <div class="privacy-item">
-                        <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
-                            <span style="font-weight: 600;">Анонимный режим</span>
-                            <label class="switch">
-                                <input type="checkbox" checked>
-                                <span class="slider-switch"></span>
-                            </label>
-                        </div>
-                        <p style="color: var(--text-secondary); font-size: 14px;">Собеседники не увидят вашу базовую информацию</p>
-                    </div>
-                </div>
-
-                <div class="privacy-section">
-                    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 18px;">🚫 Управление блокировками</h3>
-                    <div style="background: var(--background); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
-                        <p style="color: var(--text-secondary); margin-bottom: 12px;">Заблокированные пользователи: <strong>0</strong></p>
-                        <button class="action-button" style="width: 100%; padding: 12px;" onclick="showBlockedUsers()">Просмотреть список</button>
-                    </div>
-                </div>
-
-                <div class="privacy-section">
-                    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 18px;">📊 Ваши данные</h3>
-                    
-                    <div class="data-item" onclick="exportData()">
-                        <div style="display: flex; justify-content: between; align-items: center;">
-                            <div>
-                                <div style="font-weight: 600;">Экспорт данных</div>
-                                <div style="color: var(--text-secondary); font-size: 14px;">Скачайте историю ваших чатов</div>
-                            </div>
-                            <span style="color: var(--primary); font-size: 20px;">⤓</span>
-                        </div>
-                    </div>
-                    
-                    <div class="data-item" onclick="clearHistory()" style="margin-top: 12px;">
-                        <div style="display: flex; justify-content: between; align-items: center;">
-                            <div>
-                                <div style="font-weight: 600; color: var(--error);">Очистить историю</div>
-                                <div style="color: var(--text-secondary); font-size: 14px;">Удалить все чаты и сообщения</div>
-                            </div>
-                            <span style="color: var(--error); font-size: 20px;">🗑️</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="privacy-section">
-                    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 18px;">📄 Политика конфиденциальности</h3>
-                    
-                    <div style="background: var(--background); padding: 16px; border-radius: 12px;">
-                        <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px; line-height: 1.5;">
-                            • Все чаты защищены сквозным шифрованием<br>
-                            • Мы не храним личные данные пользователей<br>
-                            • Сообщения автоматически удаляются через 24 часа<br>
-                            • Администрация не имеет доступа к вашим перепискам
-                        </p>
-                        
-                        <div style="display: flex; gap: 12px; margin-top: 16px;">
-                            <button class="action-button" style="flex: 1; padding: 12px;" onclick="openPrivacyPolicy()">Полная политика</button>
-                            <button class="action-button" style="flex: 1; padding: 12px; background: var(--background); color: var(--text);" onclick="openTerms()">Условия использования</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="privacy-section">
-                    <h3 style="color: var(--error); margin-bottom: 16px; font-size: 18px;">🚨 Экстренные действия</h3>
-                    
-                    <button class="action-button" style="width: 100%; padding: 14px; background: var(--error); margin-bottom: 8px;" onclick="deleteAccount()">
-                        Удалить аккаунт
-                    </button>
-                    <p style="color: var(--text-secondary); font-size: 12px; text-align: center;">
-                        Это действие невозможно отменить. Все ваши данные будут безвозвратно удалены.
-                    </p>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
+    showNotification('Настройки конфиденциальности в разработке');
 }
 
 function openAppInfo() {
     showNotification('Анонимный чат v2.0 для VK');
 }
 
-// Функция показа модалки при выходе собеседника
 function showPartnerLeftModal() {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -985,92 +778,82 @@ function goToChats() {
     showScreen('chatsScreen');
 }
 
-// Вспомогательные функции для конфиденциальности
-function showBlockedUsers() {
-    showNotification('Список заблокированных пользователей пуст');
-}
-
-function exportData() {
-    showNotification('Функция экспорта данных в разработке');
-}
-
-function clearHistory() {
-    if(confirm('Вы уверены? Все ваши чаты и сообщения будут удалены.')) {
-        showNotification('История чатов очищена');
+function createChatWithParams(params) {
+    if (currentChat && socket) {
+        socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
     }
-}
-
-function openPrivacyPolicy() {
-    showNotification('Открывается полная политика конфиденциальности');
-}
-
-function openTerms() {
-    showNotification('Открываются условия использования');
-}
-
-function deleteAccount() {
-    if(confirm('ВНИМАНИЕ! Это удалит ваш аккаунт и все данные. Продолжить?')) {
-        showNotification('Аккаунт будет удален в течение 24 часов');
+    
+    currentChat = null;
+    
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
+                <div>Создаем новый чат...</div>
+            </div>
+        `;
     }
+    
+    const chatData = {
+        user_id: vkUser?.id || 'anonymous',
+        user_gender: params.myGender,
+        user_age: params.myAge,
+        partner_gender: params.partnerGender,
+        min_age: params.minAge,
+        max_age: params.maxAge,
+        theme: params.theme
+    };
+
+    fetch(API_URL + '/api/chats', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(chatData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Ошибка сервера: ' + response.status);
+        }
+        return response.json();
+    })
+    .then(result => {
+        console.log('✅ Новый чат создан:', result);
+        
+        userStats.createdChats++;
+        saveUserStats();
+        updateProfileStats();
+        showNotification('✅ Новый чат создан! Ожидаем собеседника...');
+        
+        if (socket) {
+            socket.emit('new_chat_created_global');
+        }
+        
+        const newChat = {
+            id: result.id,
+            gender: params.myGender + ', ' + params.myAge,
+            lookingFor: params.partnerGender + ', ' + params.minAge + '-' + params.maxAge,
+            theme: params.theme,
+            participants_count: 1,
+            timestamp: Date.now()
+        };
+        
+        startChat(newChat);
+    })
+    .catch(error => {
+        console.error('❌ Ошибка создания чата:', error);
+        showNotification('❌ Ошибка создания чата');
+        showScreen('chatsScreen');
+    });
 }
 
-// Запуск приложения
-document.addEventListener('DOMContentLoaded', initApp);
-// ДОБАВЬТЕ ЭТИ ФУНКЦИИ В КОНЕЦ app.js
-
-// Функция для отмены ожидания
 function cancelWaiting() {
     showScreen('chatsScreen');
     showNotification('Поиск собеседника отменен');
 }
 
-// Функция для кнопки "Любой" пол
-function toggleOption(element) {
-    const parent = element.parentElement;
-    const options = parent.querySelectorAll('.option-button');
-    
-    // Если это кнопка "Любой", делаем ее эксклюзивной
-    if (element.textContent === 'Любой') {
-        options.forEach(btn => btn.classList.remove('active'));
-        element.classList.add('active');
-    } else {
-        // Для других кнопок убираем активность с "Любой"
-        const anyButton = Array.from(options).find(btn => btn.textContent === 'Любой');
-        if (anyButton) {
-            anyButton.classList.remove('active');
-        }
-        element.classList.add('active');
-    }
-}
-
-// Функция для обновления слайдеров возраста
-function updateAgeRange() {
-    const minSlider = document.getElementById('minAgeSlider');
-    const maxSlider = document.getElementById('maxAgeSlider');
-    
-    if (!minSlider || !maxSlider) return;
-    
-    let minAge = parseInt(minSlider.value);
-    let maxAge = parseInt(maxSlider.value);
-    
-    // Корректируем значения если min > max
-    if (minAge > maxAge) {
-        minAge = maxAge;
-        minSlider.value = minAge;
-    }
-    
-    const minAgeValue = document.getElementById('minAgeValue');
-    const maxAgeValue = document.getElementById('maxAgeValue');
-    const minAgeInput = document.getElementById('minAge');
-    const maxAgeInput = document.getElementById('maxAge');
-    
-    if (minAgeValue) minAgeValue.textContent = minAge;
-    if (maxAgeValue) maxAgeValue.textContent = maxAge;
-    if (minAgeInput) minAgeInput.value = minAge;
-    if (maxAgeInput) maxAgeInput.value = maxAge;
-}
-
-// Инициализация слайдеров при загрузке
+// Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', function() {
     // Инициализируем слайдеры
     const minSlider = document.getElementById('minAgeSlider');
@@ -1079,8 +862,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (minSlider && maxSlider) {
         minSlider.addEventListener('input', updateAgeRange);
         maxSlider.addEventListener('input', updateAgeRange);
-        
-        // Устанавливаем начальные значения
         updateAgeRange();
     }
     
@@ -1093,4 +874,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Запускаем приложение
+    initApp();
 });
