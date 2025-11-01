@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Анонимный чат | VK</title>
-    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -27,6 +26,7 @@
             
             <div class="notification-section">
                 <div class="notification-title">Добро пожаловать!</div>
+                <div class="notification-text">Создавайте приватные чаты для двоих и находите собеседников</div>
                 <button class="notification-button" onclick="enableNotifications()">Включить уведомления</button>
             </div>
             
@@ -37,14 +37,13 @@
                 <div class="chat-tab" onclick="switchChatTab('Роль')">🎭 Роль</div>
             </div>
             
-            <!-- Карточка создания чата -->
             <div class="create-chat-card" onclick="openCreateChatModal()">
                 <div class="create-chat-icon">+</div>
                 <div class="create-chat-text" id="createChatText">Создать чат для Общения</div>
             </div>
             
             <div class="user-cards" id="chatsContainer">
-                <div class="loading-text">Загрузка чатов...</div>
+                <!-- Чаты будут добавляться сюда динамически -->
             </div>
         </div>
     </div>
@@ -87,12 +86,15 @@
             <div class="settings-list">
                 <div class="setting-item" onclick="shareApp()">
                     <div class="setting-title">Поделиться приложением</div>
+                    <div class="setting-description">Рассказать друзьям о чате</div>
                 </div>
                 <div class="setting-item" onclick="openMyChats()">
                     <div class="setting-title">Мои чаты</div>
+                    <div class="setting-description">Просмотр активных чатов</div>
                 </div>
                 <div class="setting-item" onclick="inviteFriends()">
                     <div class="setting-title">Пригласить друзей</div>
+                    <div class="setting-description">Пригласить друзей из VK</div>
                 </div>
             </div>
         </div>
@@ -109,18 +111,23 @@
             <div class="settings-list">
                 <div class="setting-item" onclick="openNotificationsSettings()">
                     <div class="setting-title">Уведомления</div>
+                    <div class="setting-description">Настройка push-уведомлений</div>
                 </div>
                 <div class="setting-item" onclick="openPrivacySettings()">
                     <div class="setting-title">Конфиденциальность</div>
+                    <div class="setting-description">Настройки приватности</div>
                 </div>
                 <div class="setting-item" onclick="addToFavorites()">
                     <div class="setting-title">В избранное</div>
+                    <div class="setting-description">Добавить приложение в избранное</div>
                 </div>
                 <div class="setting-item" onclick="openAppInfo()">
                     <div class="setting-title">О приложении</div>
+                    <div class="setting-description">Версия и информация</div>
                 </div>
                 <div class="setting-item" onclick="support()">
                     <div class="setting-title">Поддержка</div>
+                    <div class="setting-description">Связь с разработчиками</div>
                 </div>
             </div>
         </div>
@@ -132,28 +139,31 @@
             <div class="screen-header">
                 <button class="back-button" onclick="showScreen('chatsScreen')">‹</button>
                 <div class="chat-info">
-                    <div class="chat-title" id="chatRoomTitle">💬 Чат</div>
+                    <div class="chat-title" id="chatRoomTitle">Чат</div>
                     <div class="chat-members">
-                        <span id="onlineCount">1 онлайн</span>
+                        <span id="onlineCount">1 участник</span>
                         <span id="typingIndicator" style="display: none;"> - печатает...</span>
                     </div>
                 </div>
                 <div class="chat-actions">
-                    <button class="action-button" onclick="addToFriends()">👤 Добавить</button>
-                    <button class="action-button" onclick="reportUser()">⚠️ Пожаловаться</button>
-                </div>  
-            </div>
-
-            <div class="messages-container" id="messagesContainer">
-                <div class="empty-chat">
-                    <div class="empty-icon">💬</div>
-                    <div class="empty-text">Начните общение первым!</div>
+                    <button class="action-button" onclick="addToFriends()">
+                        <span style="margin-right: 4px;">👤</span>Добавить в друзья
+                    </button>
+                    <button class="action-button" onclick="reportUser()">
+                        <span style="margin-right: 4px;">⚠️</span>Пожаловаться
+                    </button>
                 </div>
             </div>
 
+            <div class="messages-container" id="messagesContainer">
+                <!-- Сообщения загружаются динамически -->
+            </div>
+
             <div class="message-input-container">
-                <input type="text" id="messageInput" placeholder="Введите сообщение..." maxlength="500">
-                <button class="send-button" onclick="sendMessage()">➤</button>
+                <input type="text" id="messageInput" placeholder="Введите сообщение..." maxlength="500" oninput="handleTyping()">
+                <button class="send-button" onclick="sendMessage()">
+                    <span style="font-size: 18px;">➤</span>
+                </button>
             </div>
         </div>
     </div>
@@ -196,8 +206,8 @@
                             <span>Диапазон: <span id="minAgeValue">18</span> - <span id="maxAgeValue">35</span> лет</span>
                         </div>
                         <div class="slider-wrapper">
-                            <input type="range" min="18" max="80" value="18" class="slider" id="minAgeSlider">
-                            <input type="range" min="18" max="80" value="35" class="slider" id="maxAgeSlider">
+                            <input type="range" min="18" max="80" value="18" class="slider" id="minAgeSlider" oninput="updateAgeRange()">
+                            <input type="range" min="18" max="80" value="35" class="slider" id="maxAgeSlider" oninput="updateAgeRange()">
                         </div>
                     </div>
                 </div>
@@ -205,7 +215,7 @@
                 <input type="hidden" id="maxAge" value="35">
             </div>
             
-            <button class="create-button" onclick="createChat()">Начать поиск собеседника</button>
+            <button class="create-button" onclick="createChat()">Создать чат</button>
         </div>
     </div>
 
