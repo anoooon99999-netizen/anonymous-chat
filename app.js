@@ -130,8 +130,39 @@ function initSocket() {
             showNotification('❌ ' + data.message);
         });
         
+        // ВАЖНО: Обработчик новых чатов от других пользователей
+        socket.on('new_chat_created', (chat) => {
+            console.log('📨 Получен новый чат от другого пользователя:', chat);
+            addChatToList(chat);
+        });
+        
     } catch (error) {
         console.error('Socket error:', error);
+    }
+}
+
+// Функция для добавления чата в список
+function addChatToList(chat) {
+    const newChat = {
+        id: chat.id,
+        gender: chat.user_gender + ', ' + chat.user_age,
+        lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
+        theme: chat.theme,
+        participants_count: chat.participants_count,
+        timestamp: new Date(chat.created_at).getTime()
+    };
+    
+    // Проверяем, нет ли уже такого чата в списке
+    const existingChat = allChats.find(c => c.id === chat.id);
+    if (!existingChat) {
+        allChats.unshift(newChat);
+        console.log('✅ Чат добавлен в список:', newChat);
+        
+        // Обновляем список если тема совпадает
+        if (chat.theme === currentTheme) {
+            renderChatsList();
+            showNotification('📢 Появился новый чат в разделе "' + chat.theme + '"');
+        }
     }
 }
 
@@ -294,8 +325,27 @@ async function createChat() {
             const result = await response.json();
             console.log('✅ Чат создан:', result);
             
-            // ВАЖНО: ПЕРЕЗАГРУЖАЕМ ВСЕ ЧАТЫ С СЕРВЕРА
-            await loadAndRenderChats();
+            // Добавляем свой чат в список
+            const newChat = {
+                id: result.id,
+                gender: myGender + ', ' + myAge,
+                lookingFor: partnerGender + ', ' + minAge + '-' + maxAge,
+                theme: currentTheme,
+                participants_count: 1,
+                timestamp: Date.now()
+            };
+            
+            addChatToList({
+                id: result.id,
+                user_gender: myGender,
+                user_age: parseInt(myAge),
+                partner_gender: partnerGender,
+                min_age: parseInt(minAge),
+                max_age: parseInt(maxAge),
+                theme: currentTheme,
+                participants_count: 1,
+                created_at: new Date().toISOString()
+            });
             
             userStats.createdChats++;
             saveUserStats();
@@ -303,11 +353,9 @@ async function createChat() {
             showNotification('✅ Чат успешно создан! Ожидаем собеседника...');
             closeCreateChatModal();
             
-            // Находим созданный чат в обновленном списке и переходим в него
-            const createdChat = allChats.find(chat => chat.id === result.id);
-            if (createdChat) {
-                setTimeout(() => startChat(createdChat), 500);
-            }
+            // Автоматически переходим в созданный чат
+            setTimeout(() => startChat(newChat), 500);
+            
         } else {
             throw new Error('Ошибка сервера: ' + response.status);
         }
