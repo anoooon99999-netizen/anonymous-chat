@@ -75,7 +75,14 @@ function initSocket() {
         socket.on('connect', () => {
             console.log('Connected to server');
             if (currentChat) {
-                socket.emit('join_chat', { chatId: currentChat.id, userId: vkUser?.id });
+                socket.emit('join_chat', { 
+                    chatId: currentChat.id, 
+                    userId: vkUser?.id,
+                    userData: {
+                        name: vkUser?.first_name + ' ' + vkUser?.last_name,
+                        gender: currentChat.gender?.split(',')[0]?.trim()
+                    }
+                });
             }
         });
         
@@ -202,35 +209,30 @@ function removeChatFromList(chatId) {
 // Функция для показа модального окна при выходе участника
 function showPartnerLeftModal(chatData) {
     const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
+    modal.className = 'modal-overlay partner-left-modal';
     modal.style.display = 'block';
     modal.style.zIndex = '1000';
     
     modal.innerHTML = `
-        <div class="modal-content" style="max-width: 400px;">
-            <div class="modal-header">
-                <div class="modal-title">Собеседник вышел</div>
+        <div class="modal-content">
+            <div class="modal-icon">😔</div>
+            <div class="modal-title">Собеседник вышел</div>
+            <div class="modal-description">
+                Ваш собеседник покинул чат. Что хотите сделать?
             </div>
-            <div style="padding: 20px; text-align: center;">
-                <div style="font-size: 48px; margin-bottom: 16px;">😔</div>
-                <div style="margin-bottom: 20px; color: var(--text-secondary);">
-                    Ваш собеседник покинул чат. Что хотите сделать?
-                </div>
-                <div style="display: flex; gap: 10px; flex-direction: column;">
-                    <button class="create-button" onclick="recreateChat(${JSON.stringify(chatData).replace(/"/g, '&quot;')})" style="width: 100%;">
-                        Создать такой же чат
-                    </button>
-                    <button class="action-button" onclick="closeModalAndReturn()" style="width: 100%; background: var(--bg-secondary);">
-                        Вернуться к чатам
-                    </button>
-                </div>
+            <div class="modal-buttons">
+                <button class="modal-primary-button" onclick="recreateChat(${JSON.stringify(chatData).replace(/"/g, '&quot;')})">
+                    Создать такой же чат
+                </button>
+                <button class="modal-secondary-button" onclick="closeModalAndReturn()">
+                    Вернуться к чатам
+                </button>
             </div>
         </div>
     `;
     
     document.body.appendChild(modal);
     
-    // Закрытие при клике вне модального окна
     modal.addEventListener('click', function(e) {
         if (e.target === this) {
             closeModalAndReturn();
@@ -388,7 +390,7 @@ function openCreateChatModal() {
 
 function updateAgeRange() {
     const minSlider = document.getElementById('minAgeSlider');
-    const maxSlider = document.getElementById('maxSlider');
+    const maxSlider = document.getElementById('maxAgeSlider');
     
     let minAge = parseInt(minSlider.value);
     let maxAge = parseInt(maxSlider.value);
