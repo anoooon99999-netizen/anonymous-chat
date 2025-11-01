@@ -8,6 +8,7 @@
     --gradient: linear-gradient(135deg, #6366F1, #8B5CF6, #EC4899);
     --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     --glass-effect: rgba(255, 255, 255, 0.05);
+    --bg-secondary: #2D3748;
 }
 
 /* ФИКСИРОВАННАЯ ШИРИНА 700px БЕЗ ГРАНИЦ */
@@ -823,6 +824,15 @@ body {
     box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
+.action-button.exit-button {
+    background: linear-gradient(135deg, #EF4444, #DC2626);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.action-button.exit-button:active {
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
 /* Ползунки */
 .slider-container {
     margin: 20px 0;
@@ -911,4 +921,132 @@ body {
 .empty-text {
     font-size: 16px;
     font-weight: 600;
+}
+
+/* Стили для модального окна при выходе участника */
+.modal-overlay.partner-left-modal {
+    backdrop-filter: blur(15px);
+    background: rgba(15, 15, 35, 0.95);
+}
+
+.modal-overlay.partner-left-modal .modal-content {
+    border-radius: 24px;
+    bottom: auto;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 380px;
+    text-align: center;
+    animation: modalAppear 0.3s ease-out;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -40%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+.modal-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    display: block;
+}
+
+.modal-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.modal-description {
+    color: var(--text-secondary);
+    font-size: 15px;
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+
+.modal-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.modal-primary-button {
+    background: var(--gradient);
+    color: white;
+    border: none;
+    padding: 18px;
+    border-radius: 16px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.modal-primary-button:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+.modal-secondary-button {
+    background: var(--bg-secondary);
+    color: var(--text);
+    border: 2px solid var(--border);
+    padding: 16px;
+    border-radius: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.modal-secondary-button:active {
+    background: var(--border);
+    transform: translateY(2px);
+}
+
+/* Адаптивность для модальных окон */
+@media (max-width: 700px) {
+    .modal-overlay.partner-left-modal .modal-content {
+        width: calc(100% - 32px);
+        max-width: none;
+        margin: 0 16px;
+    }
+    
+    .modal-buttons {
+        gap: 10px;
+    }
+    
+    .modal-primary-button,
+    .modal-secondary-button {
+        padding: 16px;
+        font-size: 15px;
+    }
+}
+
+/* Стили для скроллбара */
+.messages-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
 }
