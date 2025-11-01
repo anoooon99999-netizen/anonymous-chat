@@ -23,7 +23,10 @@ let socket = null;
 // Инициализация приложения
 async function initApp() {
     try {
+        console.log('🚀 Инициализация приложения...');
+        
         if (typeof vkBridge !== 'undefined') {
+            console.log('✅ VK Bridge доступен');
             await vkBridge.send('VKWebAppInit');
             isVK = true;
             const userInfo = await vkBridge.send('VKWebAppGetUserInfo');
@@ -51,6 +54,7 @@ async function initApp() {
     updateProfileStats();
     setupEventListeners();
     
+    // Автообновление каждые 5 секунд
     setInterval(() => {
         if (!currentChat) {
             loadAndRenderChats();
@@ -59,20 +63,27 @@ async function initApp() {
 }
 
 function updateUserInterface(userInfo) {
-    document.getElementById('vkUserName').textContent = userInfo.first_name + (userInfo.last_name ? ' ' + userInfo.last_name : '');
-    document.getElementById('vkUserInfo').style.display = 'flex';
-    document.getElementById('profileName').textContent = userInfo.first_name + (userInfo.last_name ? ' ' + userInfo.last_name : '');
-    document.getElementById('currentAvatar').textContent = userInfo.first_name.charAt(0);
+    const userNameElement = document.getElementById('vkUserName');
+    const userInfoElement = document.getElementById('vkUserInfo');
+    const profileNameElement = document.getElementById('profileName');
+    const currentAvatarElement = document.getElementById('currentAvatar');
+    
+    if (userNameElement) userNameElement.textContent = userInfo.first_name + (userInfo.last_name ? ' ' + userInfo.last_name : '');
+    if (userInfoElement) userInfoElement.style.display = 'flex';
+    if (profileNameElement) profileNameElement.textContent = userInfo.first_name + (userInfo.last_name ? ' ' + userInfo.last_name : '');
+    if (currentAvatarElement) currentAvatarElement.textContent = userInfo.first_name.charAt(0);
 }
 
 // Переключение вкладок чатов
-function switchChatTab(theme) {
+function switchChatTab(theme, element) {
     currentTheme = theme;
     
     document.querySelectorAll('.chat-tab').forEach(tab => tab.classList.remove('active'));
-    event.target.classList.add('active');
+    if (element) element.classList.add('active');
     
-    document.getElementById('createChatText').textContent = 'Создать чат для ' + theme;
+    const createChatText = document.getElementById('createChatText');
+    if (createChatText) createChatText.textContent = 'Создать чат для ' + theme;
+    
     renderChatsList();
 }
 
@@ -119,13 +130,15 @@ function initSocket() {
         
         socket.on('typing_start', (data) => {
             if (currentChat && data.chatId === currentChat.id) {
-                document.getElementById('typingIndicator').style.display = 'inline';
+                const typingIndicator = document.getElementById('typingIndicator');
+                if (typingIndicator) typingIndicator.style.display = 'inline';
             }
         });
         
         socket.on('typing_stop', (data) => {
             if (currentChat && data.chatId === currentChat.id) {
-                document.getElementById('typingIndicator').style.display = 'none';
+                const typingIndicator = document.getElementById('typingIndicator');
+                if (typingIndicator) typingIndicator.style.display = 'none';
             }
         });
         
@@ -185,8 +198,11 @@ function initSocket() {
 }
 
 function updateOnlineCount() {
-    const count = onlineUsers.size;
-    document.getElementById('onlineCount').textContent = count + ' онлайн';
+    const onlineCountElement = document.getElementById('onlineCount');
+    if (onlineCountElement) {
+        const count = onlineUsers.size;
+        onlineCountElement.textContent = count + ' онлайн';
+    }
 }
 
 function handleTyping() {
@@ -309,13 +325,22 @@ function renderChatsList() {
 
 function openCreateChatModal() {
     console.log('🎯 Открываем модальное окно создания чата');
-    document.getElementById('modalTitle').textContent = 'Создать чат для ' + currentTheme;
-    document.getElementById('createChatModal').style.display = 'block';
+    const modalTitle = document.getElementById('modalTitle');
+    const modal = document.getElementById('createChatModal');
+    
+    if (modalTitle) modalTitle.textContent = 'Создать чат для ' + currentTheme;
+    if (modal) modal.style.display = 'block';
 }
 
 function updateAgeRange() {
     const minSlider = document.getElementById('minAgeSlider');
     const maxSlider = document.getElementById('maxAgeSlider');
+    const minAgeValue = document.getElementById('minAgeValue');
+    const maxAgeValue = document.getElementById('maxAgeValue');
+    const minAgeInput = document.getElementById('minAge');
+    const maxAgeInput = document.getElementById('maxAge');
+    
+    if (!minSlider || !maxSlider || !minAgeValue || !maxAgeValue || !minAgeInput || !maxAgeInput) return;
     
     let minAge = parseInt(minSlider.value);
     let maxAge = parseInt(maxSlider.value);
@@ -325,11 +350,10 @@ function updateAgeRange() {
         minSlider.value = minAge;
     }
     
-    document.getElementById('minAgeValue').textContent = minAge;
-    document.getElementById('maxAgeValue').textContent = maxAge;
-    
-    document.getElementById('minAge').value = minAge;
-    document.getElementById('maxAge').value = maxAge;
+    minAgeValue.textContent = minAge;
+    maxAgeValue.textContent = maxAge;
+    minAgeInput.value = minAge;
+    maxAgeInput.value = maxAge;
 }
 
 async function createChat() {
@@ -343,11 +367,20 @@ async function createChat() {
         return;
     }
     
+    const myAgeInput = document.getElementById('myAge');
+    const minAgeInput = document.getElementById('minAge');
+    const maxAgeInput = document.getElementById('maxAge');
+    
+    if (!myAgeInput || !minAgeInput || !maxAgeInput) {
+        showNotification('❌ Ошибка: не найдены поля ввода');
+        return;
+    }
+    
     const myGender = myGenderElement.textContent;
-    const myAge = document.getElementById('myAge').value;
+    const myAge = myAgeInput.value;
     const partnerGender = partnerGenderElement.textContent;
-    const minAge = document.getElementById('minAge').value;
-    const maxAge = document.getElementById('maxAge').value;
+    const minAge = minAgeInput.value;
+    const maxAge = maxAgeInput.value;
 
     console.log('📊 Данные для создания чата:', { 
         myGender, myAge, partnerGender, minAge, maxAge, theme: currentTheme 
@@ -453,9 +486,11 @@ async function startChat(chat) {
     }
     
     currentChat = chat;
-    document.getElementById('chatRoomTitle').textContent = getChatEmoji(chat.theme) + ' ' + chat.theme;
-    showScreen('chatRoomScreen');
     
+    const chatRoomTitle = document.getElementById('chatRoomTitle');
+    if (chatRoomTitle) chatRoomTitle.textContent = getChatEmoji(chat.theme) + ' ' + chat.theme;
+    
+    showScreen('chatRoomScreen');
     document.body.classList.add('chat-room-active');
     
     if (socket) {
@@ -487,6 +522,8 @@ async function loadMessages(chatId) {
         }
         const messages = await response.json();
         const container = document.getElementById('messagesContainer');
+        if (!container) return;
+        
         container.innerHTML = '';
         
         if (messages.length === 0) {
@@ -513,6 +550,7 @@ async function loadMessages(chatId) {
 
 function addMessageToChat(message) {
     const container = document.getElementById('messagesContainer');
+    if (!container) return;
     
     if (container.innerHTML.includes('Пока нет сообщений')) {
         container.innerHTML = '';
@@ -534,6 +572,8 @@ function addMessageToChat(message) {
 
 async function sendMessage() {
     const input = document.getElementById('messageInput');
+    if (!input) return;
+    
     const text = input.value.trim();
     
     if (!text || !currentChat) return;
@@ -573,12 +613,17 @@ async function sendMessage() {
 }
 
 function closeCreateChatModal() {
-    document.getElementById('createChatModal').style.display = 'none';
+    const modal = document.getElementById('createChatModal');
+    if (modal) modal.style.display = 'none';
 }
 
 // Функция для переключения опций в модальном окне
 function toggleOption(element) {
+    if (!element) return;
+    
     const parent = element.parentElement;
+    if (!parent) return;
+    
     const allOptions = parent.querySelectorAll('.option-button');
     
     allOptions.forEach(btn => {
@@ -592,7 +637,9 @@ function toggleOption(element) {
 
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-    document.getElementById(screenId).classList.add('active');
+    
+    const targetScreen = document.getElementById(screenId);
+    if (targetScreen) targetScreen.classList.add('active');
     
     if (screenId !== 'chatRoomScreen') {
         document.body.classList.remove('chat-room-active');
@@ -609,55 +656,85 @@ function showScreen(screenId) {
     
     if (menuMap[screenId] !== undefined) {
         const menuItems = document.querySelectorAll('.menu-item');
-        menuItems[menuMap[screenId]].classList.add('active');
+        if (menuItems[menuMap[screenId]]) {
+            menuItems[menuMap[screenId]].classList.add('active');
+        }
     }
     
     if (screenId !== 'chatRoomScreen' && currentChat && socket) {
         socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
-        document.getElementById('typingIndicator').style.display = 'none';
+        const typingIndicator = document.getElementById('typingIndicator');
+        if (typingIndicator) typingIndicator.style.display = 'none';
     }
 }
 
 function loadUserStats() {
     const savedStats = localStorage.getItem('user_stats');
     if (savedStats) {
-        userStats = JSON.parse(savedStats);
+        try {
+            userStats = JSON.parse(savedStats);
+        } catch (error) {
+            console.error('Ошибка загрузки статистики:', error);
+        }
     }
     
     const firstVisit = localStorage.getItem('first_visit');
     if (!firstVisit) {
         localStorage.setItem('first_visit', Date.now());
     } else {
-        const days = Math.floor((Date.now() - parseInt(firstVisit)) / (1000 * 60 * 60 * 24));
-        userStats.daysActive = Math.max(1, days);
+        try {
+            const days = Math.floor((Date.now() - parseInt(firstVisit)) / (1000 * 60 * 60 * 24));
+            userStats.daysActive = Math.max(1, days);
+        } catch (error) {
+            console.error('Ошибка расчета дней:', error);
+        }
     }
 }
 
 function saveUserStats() {
-    localStorage.setItem('user_stats', JSON.stringify(userStats));
+    try {
+        localStorage.setItem('user_stats', JSON.stringify(userStats));
+    } catch (error) {
+        console.error('Ошибка сохранения статистики:', error);
+    }
 }
 
 function updateProfileStats() {
-    document.getElementById('chatsCount').textContent = userStats.createdChats;
-    document.getElementById('messagesCount').textContent = userStats.sentMessages;
-    document.getElementById('friendsCount').textContent = userStats.friends;
-    document.getElementById('daysCount').textContent = userStats.daysActive;
-    document.getElementById('profileReputation').textContent = userStats.reputation;
+    const elements = {
+        'chatsCount': userStats.createdChats,
+        'messagesCount': userStats.sentMessages,
+        'friendsCount': userStats.friends,
+        'daysCount': userStats.daysActive,
+        'profileReputation': userStats.reputation
+    };
+    
+    Object.keys(elements).forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = elements[id];
+    });
 }
 
 function getTimeAgo(timestamp) {
-    const diff = Date.now() - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    if (minutes < 1) return 'только что';
-    if (minutes < 60) return minutes + ' мин назад';
-    if (hours < 24) return hours + ' ч назад';
-    return Math.floor(hours / 24) + ' дн назад';
+    try {
+        const diff = Date.now() - timestamp;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        if (minutes < 1) return 'только что';
+        if (minutes < 60) return minutes + ' мин назад';
+        if (hours < 24) return hours + ' ч назад';
+        return Math.floor(hours / 24) + ' дн назад';
+    } catch (error) {
+        return 'недавно';
+    }
 }
 
 function showNotification(message) {
     const existingSnackbars = document.querySelectorAll('.snackbar');
-    existingSnackbars.forEach(snackbar => snackbar.remove());
+    existingSnackbars.forEach(snackbar => {
+        if (snackbar.parentNode) {
+            snackbar.remove();
+        }
+    });
     
     const snackbar = document.createElement('div');
     snackbar.className = 'snackbar';
@@ -665,7 +742,9 @@ function showNotification(message) {
     document.body.appendChild(snackbar);
     
     setTimeout(() => {
-        snackbar.remove();
+        if (snackbar.parentNode) {
+            snackbar.remove();
+        }
     }, 3000);
 }
 
@@ -685,6 +764,8 @@ function setupEventListeners() {
                 sendMessage();
             }
         });
+        
+        messageInput.addEventListener('input', handleTyping);
     }
 
     const minSlider = document.getElementById('minAgeSlider');
@@ -713,7 +794,7 @@ function enableNotifications() {
 }
 
 function openMyChats() {
-    const myChatsCount = allChats.filter(chat => chat.userId === vkUser?.id).length;
+    const myChatsCount = allChats.filter(chat => chat.creator_id === vkUser?.id).length;
     if (myChatsCount > 0) {
         showNotification(`У вас ${myChatsCount} активных чатов`);
     } else {
