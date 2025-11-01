@@ -136,9 +136,127 @@ function initSocket() {
             addChatToList(chat);
         });
         
+        // 🔥 ВАЖНО: Обработчик удаления чата из списка при заполнении
+        socket.on('chat_became_full', (data) => {
+            console.log('🚫 Чат заполнен, удаляем из списка:', data.id);
+            removeChatFromList(data.id);
+        });
+        
+        // 🔥 ВАЖНО: Обработчик возврата чата в список
+        socket.on('chat_became_available', (chat) => {
+            console.log('🔄 Чат снова доступен:', chat.id);
+            addChatToList(chat);
+        });
+        
+        // 🔥 ВАЖНО: Обработчик выхода участника - показ модального окна создателю
+        socket.on('partner_left_chat', (data) => {
+            console.log('🎯 Собеседник вышел, показываем окно выбора');
+            showPartnerLeftModal(data.chatData);
+        });
+        
+        // 🔥 ВАЖНО: Обработчик возврата на вкладку чатов
+        socket.on('redirect_to_chats', () => {
+            console.log('🔙 Возвращаем пользователя на вкладку чатов');
+            showScreen('chatsScreen');
+            showNotification('Вы вышли из чата');
+        });
+        
+        // 🔥 ВАЖНО: Обработчик выхода создателя чата
+        socket.on('creator_left_chat', (data) => {
+            console.log('👑 Создатель вышел, возвращаем участника');
+            showScreen('chatsScreen');
+            showNotification('Создатель чата вышел');
+        });
+        
+        // 🔥 ВАЖНО: Обработчик успешного пересоздания чата
+        socket.on('chat_recreated', (data) => {
+            console.log('🆕 Чат пересоздан:', data.newChatId);
+            const newChat = {
+                id: data.newChatId,
+                gender: data.chatData.user_gender + ', ' + data.chatData.user_age,
+                lookingFor: data.chatData.partner_gender + ', ' + data.chatData.min_age + '-' + data.chatData.max_age,
+                theme: data.chatData.theme,
+                participants_count: 1,
+                timestamp: Date.now()
+            };
+            startChat(newChat);
+        });
+        
     } catch (error) {
         console.error('Socket error:', error);
     }
+}
+
+// Функция для удаления чата из списка
+function removeChatFromList(chatId) {
+    console.log('🗑️ Удаляем чат из списка:', chatId);
+    const initialLength = allChats.length;
+    allChats = allChats.filter(chat => chat.id !== chatId);
+    
+    if (allChats.length !== initialLength) {
+        console.log('✅ Чат удален из списка');
+        renderChatsList();
+    }
+}
+
+// Функция для показа модального окна при выходе участника
+function showPartnerLeftModal(chatData) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'block';
+    modal.style.zIndex = '1000';
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <div class="modal-title">Собеседник вышел</div>
+            </div>
+            <div style="padding: 20px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 16px;">😔</div>
+                <div style="margin-bottom: 20px; color: var(--text-secondary);">
+                    Ваш собеседник покинул чат. Что хотите сделать?
+                </div>
+                <div style="display: flex; gap: 10px; flex-direction: column;">
+                    <button class="create-button" onclick="recreateChat(${JSON.stringify(chatData).replace(/"/g, '&quot;')})" style="width: 100%;">
+                        Создать такой же чат
+                    </button>
+                    <button class="action-button" onclick="closeModalAndReturn()" style="width: 100%; background: var(--bg-secondary);">
+                        Вернуться к чатам
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Закрытие при клике вне модального окна
+    modal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeModalAndReturn();
+        }
+    });
+}
+
+function recreateChat(chatData) {
+    console.log('🔄 Пересоздаем чат с данными:', chatData);
+    
+    if (socket) {
+        socket.emit('recreate_chat', {
+            originalChatData: chatData,
+            userId: vkUser?.id
+        });
+    }
+    
+    // Закрываем модальное окно
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) modal.remove();
+}
+
+function closeModalAndReturn() {
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) modal.remove();
+    showScreen('chatsScreen');
 }
 
 // Функция для добавления чата в список
@@ -148,7 +266,7 @@ function addChatToList(chat) {
         gender: chat.user_gender + ', ' + chat.user_age,
         lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
         theme: chat.theme,
-        participants_count: chat.participants_count,
+        participants_count: chat.participants_count || 1,
         timestamp: new Date(chat.created_at).getTime()
     };
     
@@ -163,6 +281,12 @@ function addChatToList(chat) {
             renderChatsList();
             showNotification('📢 Появился новый чат в разделе "' + chat.theme + '"');
         }
+    } else {
+        // Обновляем существующий чат
+        const index = allChats.findIndex(c => c.id === chat.id);
+        allChats[index] = newChat;
+        console.log('🔄 Чат обновлен в списке:', newChat);
+        renderChatsList();
     }
 }
 
@@ -264,7 +388,7 @@ function openCreateChatModal() {
 
 function updateAgeRange() {
     const minSlider = document.getElementById('minAgeSlider');
-    const maxSlider = document.getElementById('maxAgeSlider');
+    const maxSlider = document.getElementById('maxSlider');
     
     let minAge = parseInt(minSlider.value);
     let maxAge = parseInt(maxSlider.value);
@@ -373,7 +497,14 @@ async function startChat(chat) {
     document.body.classList.add('chat-room-active');
     
     if (socket) {
-        socket.emit('join_chat', { chatId: chat.id, userId: vkUser?.id });
+        socket.emit('join_chat', { 
+            chatId: chat.id, 
+            userId: vkUser?.id,
+            userData: {
+                name: vkUser?.first_name + ' ' + vkUser?.last_name,
+                gender: chat.gender?.split(',')[0]?.trim()
+            }
+        });
     }
     
     await loadMessages(chat.id);
@@ -479,6 +610,22 @@ async function sendMessage() {
     }
 }
 
+// 🔥 ВАЖНО: Обновленная функция выхода из чата
+function leaveChat() {
+    if (!currentChat || !socket) return;
+    
+    const isCreator = currentChat.creator_id === vkUser?.id;
+    
+    socket.emit('leave_chat', { 
+        chatId: currentChat.id, 
+        userId: vkUser?.id,
+        isCreator: isCreator
+    });
+    
+    currentChat = null;
+    showScreen('chatsScreen');
+}
+
 function closeCreateChatModal() {
     document.getElementById('createChatModal').style.display = 'none';
 }
@@ -495,6 +642,16 @@ function showScreen(screenId) {
     
     if (screenId !== 'chatRoomScreen') {
         document.body.classList.remove('chat-room-active');
+        // При переходе с экрана чата - выходим из чата
+        if (currentChat && socket) {
+            const isCreator = currentChat.creator_id === vkUser?.id;
+            socket.emit('leave_chat', { 
+                chatId: currentChat.id, 
+                userId: vkUser?.id,
+                isCreator: isCreator
+            });
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
     } else {
         document.body.classList.add('chat-room-active');
     }
@@ -509,11 +666,6 @@ function showScreen(screenId) {
     if (menuMap[screenId] !== undefined) {
         const menuItems = document.querySelectorAll('.menu-item');
         menuItems[menuMap[screenId]].classList.add('active');
-    }
-    
-    if (screenId !== 'chatRoomScreen' && currentChat && socket) {
-        socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
-        document.getElementById('typingIndicator').style.display = 'none';
     }
 }
 
