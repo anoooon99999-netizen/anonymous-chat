@@ -27,29 +27,48 @@ let chatMessages = new Map(); // chatId -> messages array
 
 // Создание нового чата
 app.post('/api/chats', (req, res) => {
-  const { user_id, user_gender, user_age, partner_gender, min_age, max_age, theme } = req.body;
-  
-  const chatId = uuidv4();
-  const chat = {
-    id: chatId,
-    creator_id: user_id,
-    user_gender,
-    user_age: parseInt(user_age),
-    partner_gender,
-    min_age: parseInt(min_age),
-    max_age: parseInt(max_age),
-    theme,
-    participants: [user_id],
-    created_at: new Date().toISOString(),
-    status: 'waiting' // waiting, active, closed
-  };
-  
-  activeChats.set(chatId, chat);
-  chatMessages.set(chatId, []);
-  
-  console.log(`🆕 New chat created: ${chatId} by ${user_id}`);
-  
-  res.json(chat);
+  try {
+    const { user_id, user_gender, user_age, partner_gender, min_age, max_age, theme } = req.body;
+    
+    const chatId = uuidv4();
+    const chat = {
+      id: chatId,
+      creator_id: user_id,
+      user_gender,
+      user_age: parseInt(user_age),
+      partner_gender,
+      min_age: parseInt(min_age),
+      max_age: parseInt(max_age),
+      theme,
+      participants: [user_id],
+      created_at: new Date().toISOString(),
+      status: 'waiting'
+    };
+    
+    activeChats.set(chatId, chat);
+    chatMessages.set(chatId, []);
+    
+    console.log(`🆕 Новый чат создан: ${chatId}, тема: ${theme}`);
+    
+    // ВАЖНО: Рассылаем всем клиентам о новом чате
+    io.emit('new_chat_created', {
+      id: chat.id,
+      user_gender: chat.user_gender,
+      user_age: chat.user_age,
+      partner_gender: chat.partner_gender,
+      min_age: chat.min_age,
+      max_age: chat.max_age,
+      theme: chat.theme,
+      created_at: chat.created_at,
+      participants_count: chat.participants.length,
+      status: chat.status
+    });
+
+    res.json(chat);
+  } catch (error) {
+    console.error('❌ Ошибка создания чата:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
 });
 
 // Получение списка чатов
@@ -144,6 +163,20 @@ io.on('connection', (socket) => {
       if (chat.participants.length === 2) {
         chat.status = 'active';
         io.to(chatId).emit('chat_activated', { chatId });
+        
+        // Уведомляем всех о изменении статуса чата
+        io.emit('chat_updated', {
+          id: chatId,
+          status: 'active',
+          participants_count: 2
+        });
+      } else {
+        // Обновляем информацию о чате для всех
+        io.emit('chat_updated', {
+          id: chatId,
+          status: 'waiting',
+          participants_count: chat.participants.length
+        });
       }
     }
     
@@ -174,6 +207,28 @@ io.on('connection', (socket) => {
     const { chatId, userId } = data;
     
     if (activeChats.has(chatId)) {
+      const chat = activeChats.get(chatId);
+      
+      // Удаляем пользователя из участников
+      const userIndex = chat.participants.indexOf(userId);
+      if (userIndex > -1) {
+        chat.participants.splice(userIndex, 1);
+      }
+      
+      // Если участников не осталось - закрываем чат
+      if (chat.participants.length === 0) {
+        activeChats.delete(chatId);
+        chatMessages.delete(chatId);
+        io.emit('chat_closed', { chatId });
+      } else {
+        // Обновляем информацию о чате
+        io.emit('chat_updated', {
+          id: chatId,
+          status: chat.status,
+          participants_count: chat.participants.length
+        });
+      }
+      
       socket.leave(chatId);
       socket.to(chatId).emit('user_left', { chatId, userId });
     }
@@ -215,6 +270,7 @@ setInterval(() => {
     if (chatTime < hourAgo) {
       activeChats.delete(chatId);
       chatMessages.delete(chatId);
+      io.emit('chat_closed', { chatId });
       console.log(`🗑️  Cleaned up old chat: ${chatId}`);
     }
   }
