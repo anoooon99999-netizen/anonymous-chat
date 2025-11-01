@@ -134,13 +134,25 @@ app.get('/api/messages', (req, res) => {
   res.json(messages);
 });
 
+// Получение информации о чате
+app.get('/api/chats/:chatId', (req, res) => {
+  const { chatId } = req.params;
+  
+  if (!activeChats.has(chatId)) {
+    return res.status(404).json({ error: 'Chat not found' });
+  }
+  
+  const chat = activeChats.get(chatId);
+  res.json(chat);
+});
+
 // Socket.io обработчики
 io.on('connection', (socket) => {
   console.log('🔗 User connected:', socket.id);
   
   // Присоединение к чату
   socket.on('join_chat', (data) => {
-    const { chatId, userId } = data;
+    const { chatId, userId, userData } = data;
     
     if (!activeChats.has(chatId)) {
       socket.emit('error', { message: 'Chat not found' });
@@ -197,6 +209,7 @@ io.on('connection', (socket) => {
     socket.to(chatId).emit('user_joined', {
       chatId,
       userId,
+      userData,
       participants: chat.participants
     });
     
@@ -211,7 +224,7 @@ io.on('connection', (socket) => {
   
   // Покидание чата
   socket.on('leave_chat', (data) => {
-    const { chatId, userId } = data;
+    const { chatId, userId, isCreator } = data;
     
     if (activeChats.has(chatId)) {
       const chat = activeChats.get(chatId);
@@ -222,6 +235,13 @@ io.on('connection', (socket) => {
         chat.participants.splice(userIndex, 1);
       }
       
+      // Уведомляем оставшихся участников о выходе
+      socket.to(chatId).emit('user_left', { 
+        chatId, 
+        userId,
+        remainingParticipants: chat.participants.length
+      });
+      
       // Если участников не осталось - закрываем чат
       if (chat.participants.length === 0) {
         activeChats.delete(chatId);
@@ -229,9 +249,36 @@ io.on('connection', (socket) => {
         io.emit('chat_closed', { chatId });
         console.log(`🗑️ Чат ${chatId} закрыт (нет участников)`);
       } else {
-        // Если остался 1 участник - возвращаем чат в список доступных
-        if (chat.participants.length === 1) {
+        // Если вышел НЕ создатель (второй участник)
+        if (!isCreator && chat.participants.length === 1) {
+          // Отправляем создателю уведомление о выходе участника
+          const creatorId = chat.participants[0]; // оставшийся участник - создатель
+          const creatorSocketId = userSockets.get(creatorId);
+          
+          if (creatorSocketId) {
+            io.to(creatorSocketId).emit('partner_left_chat', {
+              chatId,
+              chatData: {
+                user_gender: chat.user_gender,
+                user_age: chat.user_age,
+                partner_gender: chat.partner_gender,
+                min_age: chat.min_age,
+                max_age: chat.max_age,
+                theme: chat.theme
+              },
+              options: ['recreate_chat', 'return_to_chats']
+            });
+          }
+          
+          // Возвращаем вышедшего участника на вкладку чатов
+          const userSocketId = userSockets.get(userId);
+          if (userSocketId) {
+            io.to(userSocketId).emit('redirect_to_chats');
+          }
+          
           chat.status = 'waiting';
+          
+          // Делаем чат снова доступным для присоединения
           io.emit('chat_became_available', {
             id: chatId,
             status: 'waiting',
@@ -244,7 +291,33 @@ io.on('connection', (socket) => {
             theme: chat.theme,
             created_at: chat.created_at
           });
-          console.log(`🔄 Чат ${chatId} снова доступен для присоединения`);
+          
+          console.log(`🔄 Чат ${chatId} снова доступен для присоединения (вышел участник)`);
+        }
+        // Если вышел создатель чата
+        else if (isCreator && chat.participants.length === 1) {
+          // Отправляем оставшемуся участнику уведомление
+          const remainingUserId = chat.participants[0];
+          const remainingSocketId = userSockets.get(remainingUserId);
+          
+          if (remainingSocketId) {
+            io.to(remainingSocketId).emit('creator_left_chat', {
+              chatId,
+              options: ['return_to_chats']
+            });
+          }
+          
+          // Возвращаем создателя на вкладку чатов
+          const creatorSocketId = userSockets.get(userId);
+          if (creatorSocketId) {
+            io.to(creatorSocketId).emit('redirect_to_chats');
+          }
+          
+          // Закрываем чат, так как создатель ушел
+          activeChats.delete(chatId);
+          chatMessages.delete(chatId);
+          io.emit('chat_closed', { chatId });
+          console.log(`🗑️ Чат ${chatId} закрыт (создатель вышел)`);
         }
         
         // Обновляем информацию о чате
@@ -256,8 +329,49 @@ io.on('connection', (socket) => {
       }
       
       socket.leave(chatId);
-      socket.to(chatId).emit('user_left', { chatId, userId });
     }
+  });
+  
+  // Создание такого же чата (повторное создание)
+  socket.on('recreate_chat', (data) => {
+    const { originalChatData, userId } = data;
+    
+    const chatId = uuidv4();
+    const chat = {
+      id: chatId,
+      creator_id: userId,
+      user_gender: originalChatData.user_gender,
+      user_age: originalChatData.user_age,
+      partner_gender: originalChatData.partner_gender,
+      min_age: originalChatData.min_age,
+      max_age: originalChatData.max_age,
+      theme: originalChatData.theme,
+      participants: [userId],
+      created_at: new Date().toISOString(),
+      status: 'waiting'
+    };
+    
+    activeChats.set(chatId, chat);
+    chatMessages.set(chatId, []);
+    
+    console.log(`🔄 Чат пересоздан: ${chatId}, тема: ${chat.theme}`);
+    
+    // Рассылаем всем клиентам о новом чате
+    io.emit('new_chat_created', {
+      id: chat.id,
+      user_gender: chat.user_gender,
+      user_age: chat.user_age,
+      partner_gender: chat.partner_gender,
+      min_age: chat.min_age,
+      max_age: chat.max_age,
+      theme: chat.theme,
+      created_at: chat.created_at,
+      participants_count: chat.participants.length,
+      status: chat.status
+    });
+
+    // Отправляем ID нового чата пользователю
+    socket.emit('chat_recreated', { newChatId: chatId });
   });
   
   // Индикатор печати
