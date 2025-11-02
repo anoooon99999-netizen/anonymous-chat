@@ -105,7 +105,7 @@ async function showVKNotification(message) {
     }
 }
 
-// Функция добавления в друзья через VK API
+// РЕАЛЬНАЯ ФУНКЦИЯ ДОБАВЛЕНИЯ В ДРУЗЬЯ ЧЕРЕЗ VK API
 async function addToFriends() {
     if (!currentChat || !currentChat.userId) {
         showNotification('❌ Нет активного собеседника для добавления в друзья');
@@ -114,22 +114,43 @@ async function addToFriends() {
 
     try {
         if (typeof vkBridge !== 'undefined' && isVK) {
-            // Используем VK API для добавления в друзья
-            const result = await vkBridge.send('VKWebAppCallAPIMethod', {
-                method: 'friends.add',
-                params: {
-                    user_id: currentChat.userId,
-                    text: 'Привет! Познакомились в анонимном чате',
-                    v: '5.131'
-                }
+            // Получаем access_token через VK Bridge
+            const authResult = await vkBridge.send('VKWebAppGetAuthToken', {
+                app_id: window.vkAppId || 1234567, // Замените на ваш app_id
+                scope: 'friends'
             });
             
-            if (result) {
-                showNotification('✅ Заявка в друзья отправлена!');
-                await showVKNotification('Пользователь добавлен в друзья');
-                userStats.friends++;
-                saveUserStats();
-                updateProfileStats();
+            if (authResult && authResult.access_token) {
+                // Используем VK API для добавления в друзья
+                const result = await vkBridge.send('VKWebAppCallAPIMethod', {
+                    method: 'friends.add',
+                    params: {
+                        user_id: currentChat.userId,
+                        access_token: authResult.access_token,
+                        v: '5.199'
+                    }
+                });
+                
+                if (result && !result.error) {
+                    showNotification('✅ Заявка в друзья отправлена!');
+                    await showVKNotification('Заявка в друзья отправлена собеседнику');
+                    userStats.friends++;
+                    saveUserStats();
+                    updateProfileStats();
+                    
+                    // Логируем успешное добавление
+                    console.log('✅ Friend request sent successfully to:', currentChat.userId);
+                } else {
+                    // Обработка ошибок VK API
+                    const errorMsg = result.error ? result.error.error_msg : 'Неизвестная ошибка';
+                    showNotification('❌ Ошибка VK API: ' + errorMsg);
+                    console.error('VK API Error:', result.error);
+                    
+                    // Альтернативный способ через VK Web App
+                    await tryAlternativeFriendAdd();
+                }
+            } else {
+                throw new Error('Не удалось получить access token');
             }
         } else {
             // Режим вне VK - эмуляция
@@ -140,7 +161,37 @@ async function addToFriends() {
         }
     } catch (error) {
         console.error('Error adding friend:', error);
-        showNotification('❌ Ошибка при добавлении в друзья');
+        
+        // Пробуем альтернативный метод
+        await tryAlternativeFriendAdd();
+    }
+}
+
+// АЛЬТЕРНАТИВНЫЙ СПОСОБ ДОБАВЛЕНИЯ В ДРУЗЬЯ
+async function tryAlternativeFriendAdd() {
+    try {
+        if (typeof vkBridge !== 'undefined' && isVK) {
+            // Используем VKWebAppAddToFriends для мобильных устройств
+            const result = await vkBridge.send('VKWebAppAddToFriends', {
+                user_id: parseInt(currentChat.userId)
+            });
+            
+            if (result && result.result === true) {
+                showNotification('✅ Пользователь добавлен в друзья!');
+                userStats.friends++;
+                saveUserStats();
+                updateProfileStats();
+            } else {
+                // Если и это не сработало, используем стандартный метод с уведомлением
+                await vkBridge.send('VKWebAppShowOrderBox', {
+                    message: `Хотите добавить пользователя ${currentChat.userId} в друзья? Перейдите в его профиль для отправки заявки.`
+                });
+                showNotification('📱 Перейдите в профиль пользователя для отправки заявки');
+            }
+        }
+    } catch (altError) {
+        console.error('Alternative method failed:', altError);
+        showNotification('❌ Не удалось отправить заявку в друзья');
     }
 }
 
