@@ -21,9 +21,9 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // Хранилище данных
-let activeChats = new Map();
-let userSockets = new Map();
-let chatMessages = new Map();
+let activeChats = new Map();      // Только чаты с participants_count: 1
+let activeConnections = new Map(); // Активные подключения (чаты с 2 участниками)
+let chatMessages = new Map();     // Сообщения всех чатов
 
 // Создание нового чата
 app.post('/api/chats', (req, res) => {
@@ -33,24 +33,27 @@ app.post('/api/chats', (req, res) => {
     const chatId = uuidv4();
     const chat = {
       id: chatId,
-      creator_id: user_id,
+      user_id: user_id,
       user_gender,
       user_age: parseInt(user_age),
       partner_gender,
       min_age: parseInt(min_age),
       max_age: parseInt(max_age),
       theme,
-      participants: [user_id],
-      created_at: new Date().toISOString(),
-      status: 'waiting'
+      participants_count: 1,
+      created_at: new Date().toISOString()
     };
     
+    // Сохраняем в активные чаты (ожидающие второго участника)
     activeChats.set(chatId, chat);
     chatMessages.set(chatId, []);
     
-    console.log(`🆕 Новый чат создан: ${chatId}, участников: 1`);
+    console.log(`🆕 Новый чат создан: ${chatId}, создатель: ${user_id}`);
     
-    io.emit('new_chat_created', {
+    // Рассылаем всем клиентам о новом чате
+    io.emit('new_chat_created', chat);
+
+    res.json({
       id: chat.id,
       user_gender: chat.user_gender,
       user_age: chat.user_age,
@@ -58,12 +61,9 @@ app.post('/api/chats', (req, res) => {
       min_age: chat.min_age,
       max_age: chat.max_age,
       theme: chat.theme,
-      created_at: chat.created_at,
       participants_count: 1,
-      status: chat.status
+      created_at: chat.created_at
     });
-
-    res.json(chat);
   } catch (error) {
     console.error('❌ Ошибка создания чата:', error);
     res.status(500).json({ error: 'Ошибка сервера' });
@@ -73,7 +73,7 @@ app.post('/api/chats', (req, res) => {
 // Получение списка чатов (только ожидающие с 1 участником)
 app.get('/api/chats', (req, res) => {
   const chats = Array.from(activeChats.values())
-    .filter(chat => chat.status === 'waiting' && chat.participants.length === 1)
+    .filter(chat => chat.participants_count === 1)
     .map(chat => ({
       id: chat.id,
       user_gender: chat.user_gender,
@@ -83,31 +83,30 @@ app.get('/api/chats', (req, res) => {
       max_age: chat.max_age,
       theme: chat.theme,
       created_at: chat.created_at,
-      participants_count: 1
+      participants_count: 1,
+      user_id: chat.user_id
     }));
   
-  console.log(`📋 Запрос списка чатов: найдено ${chats.length} чатов`);
+  console.log(`📋 Запрос списка чатов: найдено ${chats.length} активных чатов`);
   res.json(chats);
 });
 
 // Отправка сообщения
 app.post('/api/messages', (req, res) => {
-  const { chat_id, user_id, message, user_name } = req.body;
+  const { chat_id, user_id, message } = req.body;
   
-  if (!activeChats.has(chat_id)) {
+  // Проверяем существует ли чат (может быть в activeChats или activeConnections)
+  const activeChat = activeChats.get(chat_id);
+  const activeConnection = activeConnections.get(chat_id);
+  
+  if (!activeChat && !activeConnection) {
     return res.status(404).json({ error: 'Chat not found' });
-  }
-  
-  const chat = activeChats.get(chat_id);
-  if (!chat.participants.includes(user_id)) {
-    return res.status(403).json({ error: 'Not a participant' });
   }
   
   const messageObj = {
     id: uuidv4(),
     chat_id,
     user_id,
-    user_name,
     message,
     created_at: new Date().toISOString()
   };
@@ -116,6 +115,7 @@ app.post('/api/messages', (req, res) => {
   messages.push(messageObj);
   chatMessages.set(chat_id, messages);
   
+  // Отправляем сообщение всем участникам чата
   io.to(chat_id).emit('new_message', messageObj);
   
   res.json(messageObj);
@@ -133,253 +133,145 @@ app.get('/api/messages', (req, res) => {
   res.json(messages);
 });
 
-// Получение информации о чате
-app.get('/api/chats/:chatId', (req, res) => {
-  const { chatId } = req.params;
-  
-  if (!activeChats.has(chatId)) {
-    return res.status(404).json({ error: 'Chat not found' });
-  }
-  
-  const chat = activeChats.get(chatId);
-  res.json(chat);
-});
-
 // Socket.io обработчики
 io.on('connection', (socket) => {
   console.log('🔗 User connected:', socket.id);
   
   // Присоединение к чату
   socket.on('join_chat', (data) => {
-    const { chatId, userId, userData } = data;
+    const { chatId, userId } = data;
     
     console.log(`👥 Попытка присоединения: user ${userId} к чату ${chatId}`);
     
     if (!activeChats.has(chatId)) {
-      socket.emit('error', { message: 'Chat not found' });
+      socket.emit('error', { message: 'Chat not found or already active' });
       return;
     }
     
     const chat = activeChats.get(chatId);
     
-    // Проверяем можно ли присоединиться
-    if (chat.participants.length >= 2 && !chat.participants.includes(userId)) {
-      socket.emit('error', { message: 'Chat is full' });
+    // Проверяем можно ли присоединиться (только если 1 участник)
+    if (chat.participants_count !== 1) {
+      socket.emit('error', { message: 'Chat is already full' });
       return;
     }
     
-    // Добавляем пользователя если его нет
-    let isNewUser = false;
-    if (!chat.participants.includes(userId)) {
-      chat.participants.push(userId);
-      isNewUser = true;
-      console.log(`✅ User ${userId} добавлен в чат ${chatId}`);
+    // Проверяем что пользователь не присоединяется к своему же чату
+    if (chat.user_id === userId) {
+      socket.emit('error', { message: 'Cannot join your own chat' });
+      return;
     }
     
-    // Если теперь 2 участника - активируем чат
-    if (chat.participants.length === 2 && isNewUser) {
-      chat.status = 'active';
-      
-      console.log(`🚫 Чат ${chatId} заполнен, убираем из списка`);
-      
-      // Уведомляем всех клиентов, что чат заполнен
-      io.emit('chat_became_full', {
-        id: chatId,
-        status: 'active',
-        participants_count: 2
-      });
-      
-      // Уведомляем участников чата об активации
-      io.to(chatId).emit('chat_activated', { 
-        chatId,
-        participants: chat.participants
-      });
-    }
+    console.log(`✅ User ${userId} присоединяется к чату ${chatId}`);
     
-    // Сохраняем связь пользователь -> сокет
-    userSockets.set(userId, socket.id);
+    // УВЕЛИЧИВАЕМ количество участников до 2
+    chat.participants_count = 2;
+    
+    // ПЕРЕМЕЩАЕМ чат из activeChats в activeConnections
+    activeChats.delete(chatId);
+    activeConnections.set(chatId, {
+      ...chat,
+      participants: [chat.user_id, userId] // Сохраняем ID обоих участников
+    });
+    
+    // УДАЛЯЕМ чат из общего списка - рассылаем событие всем клиентам
+    io.emit('chat_activated', { 
+      chatId: chatId
+    });
+    
+    console.log(`🎉 Чат ${chatId} активирован! Участники: ${chat.user_id} и ${userId}`);
     
     // Присоединяем сокет к комнате чата
     socket.join(chatId);
     
-    // Уведомляем о новом участнике
-    if (isNewUser) {
-      socket.to(chatId).emit('user_joined', {
-        chatId,
-        userId,
-        userData,
-        participants: chat.participants
-      });
-    }
+    // Уведомляем участников чата об активации
+    io.to(chatId).emit('chat_activated', { 
+      chatId,
+      message: 'Чат активирован! Начинайте общение.'
+    });
     
-    console.log(`👥 User ${userId} в чате ${chatId}, участников: ${chat.participants.length}/2`);
+    // Уведомляем о новом участнике
+    socket.to(chatId).emit('user_joined', {
+      chatId,
+      userId,
+      participants_count: 2
+    });
+    
+    // Обновляем онлайн счетчик
+    io.to(chatId).emit('online_users', {
+      chatId,
+      count: 2,
+      users: [chat.user_id, userId]
+    });
   });
   
   // Покидание чата
   socket.on('leave_chat', (data) => {
-    const { chatId, userId, isCreator } = data;
+    const { chatId, userId } = data;
     
-    console.log(`🚪 User ${userId} покидает чат ${chatId}, isCreator: ${isCreator}`);
+    console.log(`🚪 User ${userId} покидает чат ${chatId}`);
     
-    if (activeChats.has(chatId)) {
-      const chat = activeChats.get(chatId);
+    // Проверяем где находится чат
+    const activeChat = activeChats.get(chatId);
+    const activeConnection = activeConnections.get(chatId);
+    
+    if (activeConnection) {
+      // Чат активен (2 участника)
+      const chat = activeConnection;
       
-      // Сохраняем данные чата для возможного пересоздания
-      const chatData = {
-        user_gender: chat.user_gender,
-        user_age: chat.user_age,
-        partner_gender: chat.partner_gender,
-        min_age: chat.min_age,
-        max_age: chat.max_age,
-        theme: chat.theme
-      };
+      // Уменьшаем количество участников
+      chat.participants_count = Math.max(0, chat.participants_count - 1);
       
-      // Удаляем пользователя из участников
-      const userIndex = chat.participants.indexOf(userId);
-      if (userIndex > -1) {
-        chat.participants.splice(userIndex, 1);
-      }
-      
-      console.log(`📊 В чате ${chatId} осталось участников: ${chat.participants.length}`);
+      console.log(`📊 В чате ${chatId} осталось участников: ${chat.participants_count}`);
       
       // Уведомляем оставшихся участников о выходе
       socket.to(chatId).emit('user_left', { 
         chatId, 
-        userId,
-        remainingParticipants: chat.participants.length
+        userId
       });
       
-      // Если участников не осталось - закрываем чат
-      if (chat.participants.length === 0) {
-        activeChats.delete(chatId);
+      // Обновляем онлайн счетчик
+      const remainingUsers = chat.participants?.filter(id => id !== userId) || [];
+      io.to(chatId).emit('online_users', {
+        chatId,
+        count: remainingUsers.length,
+        users: remainingUsers
+      });
+      
+      // Если участников не осталось - полностью удаляем чат
+      if (chat.participants_count === 0) {
+        activeConnections.delete(chatId);
         chatMessages.delete(chatId);
-        io.emit('chat_closed', { chatId });
-        console.log(`🗑️ Чат ${chatId} закрыт (нет участников)`);
-      } else {
-        // Если вышел НЕ создатель (второй участник)
-        if (!isCreator && chat.participants.length === 1) {
-          const creatorId = chat.participants[0]; // оставшийся участник - создатель
-          
-          console.log(`🎯 Участник вышел, уведомляем создателя ${creatorId}`);
-          
-          // Отправляем создателю уведомление о выходе участника
-          const creatorSocketId = userSockets.get(creatorId);
-          if (creatorSocketId) {
-            io.to(creatorSocketId).emit('partner_left_chat', {
-              chatId,
-              chatData: chatData,
-              options: ['recreate_chat', 'return_to_chats']
-            });
-            console.log(`✅ Уведомление отправлено создателю ${creatorId}`);
-          } else {
-            console.log(`❌ Создатель ${creatorId} не найден в userSockets`);
-          }
-          
-          // Возвращаем вышедшего участника на вкладку чатов
-          const userSocketId = userSockets.get(userId);
-          if (userSocketId) {
-            io.to(userSocketId).emit('redirect_to_chats');
-          }
-          
-          // Возвращаем чат в статус ожидания
-          chat.status = 'waiting';
-          
-          console.log(`🔄 Чат ${chatId} снова доступен для присоединения`);
-          
-          // Делаем чат снова доступным для присоединения
-          io.emit('chat_became_available', {
-            id: chatId,
-            status: 'waiting',
-            participants_count: 1,
-            ...chatData,
-            created_at: chat.created_at
-          });
-        }
-        // Если вышел создатель чата
-        else if (isCreator && chat.participants.length === 1) {
-          console.log(`🎯 Создатель вышел, уведомляем участника`);
-          
-          // Отправляем оставшемуся участнику уведомление
-          const remainingUserId = chat.participants[0];
-          const remainingSocketId = userSockets.get(remainingUserId);
-          
-          if (remainingSocketId) {
-            io.to(remainingSocketId).emit('creator_left_chat', {
-              chatId,
-              options: ['return_to_chats']
-            });
-          }
-          
-          // Возвращаем создателя на вкладку чатов
-          const creatorSocketId = userSockets.get(userId);
-          if (creatorSocketId) {
-            io.to(creatorSocketId).emit('redirect_to_chats');
-          }
-          
-          // Закрываем чат, так как создатель ушел
-          activeChats.delete(chatId);
-          chatMessages.delete(chatId);
-          io.emit('chat_closed', { chatId });
-          console.log(`🗑️ Чат ${chatId} закрыт (создатель вышел)`);
-        }
+        console.log(`🗑️ Чат ${chatId} полностью удален (нет участников)`);
+      } 
+      // Если остался 1 участник (создатель)
+      else if (chat.participants_count === 1 && chat.user_id !== userId) {
+        console.log(`🎯 Участник ${userId} вышел, уведомляем создателя ${chat.user_id}`);
         
-        // Обновляем информацию о чате
-        io.emit('chat_updated', {
-          id: chatId,
-          status: chat.status,
-          participants_count: chat.participants.length
+        // Отправляем создателю уведомление о выходе участника
+        io.to(chatId).emit('user_left', {
+          chatId,
+          userId,
+          isPartnerLeft: true
         });
       }
       
-      socket.leave(chatId);
+    } else if (activeChat) {
+      // Чат ожидает участника (1 участник)
+      const chat = activeChat;
+      
+      // Если создатель покидает свой чат - полностью удаляем его
+      if (chat.user_id === userId) {
+        activeChats.delete(chatId);
+        chatMessages.delete(chatId);
+        
+        // Уведомляем всех что чат удален
+        io.emit('chat_removed', { chatId });
+        console.log(`🗑️ Чат ${chatId} удален (создатель вышел)`);
+      }
     }
-  });
-  
-  // Создание такого же чата (повторное создание)
-  socket.on('recreate_chat', (data) => {
-    const { originalChatData, userId } = data;
     
-    console.log(`🔄 Пересоздание чата для пользователя ${userId}`);
-    
-    const chatId = uuidv4();
-    const chat = {
-      id: chatId,
-      creator_id: userId,
-      user_gender: originalChatData.user_gender,
-      user_age: originalChatData.user_age,
-      partner_gender: originalChatData.partner_gender,
-      min_age: originalChatData.min_age,
-      max_age: originalChatData.max_age,
-      theme: originalChatData.theme,
-      participants: [userId],
-      created_at: new Date().toISOString(),
-      status: 'waiting'
-    };
-    
-    activeChats.set(chatId, chat);
-    chatMessages.set(chatId, []);
-    
-    console.log(`🆕 Чат пересоздан: ${chatId}`);
-    
-    // Рассылаем всем клиентам о новом чате
-    io.emit('new_chat_created', {
-      id: chat.id,
-      user_gender: chat.user_gender,
-      user_age: chat.user_age,
-      partner_gender: chat.partner_gender,
-      min_age: chat.min_age,
-      max_age: chat.max_age,
-      theme: chat.theme,
-      created_at: chat.created_at,
-      participants_count: 1,
-      status: 'waiting'
-    });
-
-    // Отправляем ID нового чата пользователю
-    socket.emit('chat_recreated', { 
-      newChatId: chatId,
-      chatData: chat
-    });
+    socket.leave(chatId);
   });
   
   // Индикатор печати
@@ -397,19 +289,15 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('🔌 User disconnected:', socket.id);
     
-    for (let [userId, socketId] of userSockets.entries()) {
-      if (socketId === socket.id) {
-        userSockets.delete(userId);
-        break;
-      }
-    }
+    // Автоматически выходим из всех чатов при отключении
+    // В реальном приложении здесь должна быть логика очистки
   });
 });
 
-// Очистка старых чатов
+// Очистка старых чатов (только ожидающие чаты)
 setInterval(() => {
   const now = Date.now();
-  const hourAgo = now - (60 * 60 * 1000);
+  const hourAgo = now - (60 * 60 * 1000); // 1 час
   
   for (let [chatId, chat] of activeChats.entries()) {
     const chatTime = new Date(chat.created_at).getTime();
@@ -417,12 +305,23 @@ setInterval(() => {
     if (chatTime < hourAgo) {
       activeChats.delete(chatId);
       chatMessages.delete(chatId);
-      io.emit('chat_closed', { chatId });
-      console.log(`🗑️  Cleaned up old chat: ${chatId}`);
+      io.emit('chat_removed', { chatId });
+      console.log(`🗑️ Очищен старый чат: ${chatId}`);
     }
   }
-}, 10 * 60 * 1000);
+  
+  // Также очищаем старые активные соединения без участников
+  for (let [chatId, chat] of activeConnections.entries()) {
+    if (chat.participants_count === 0) {
+      activeConnections.delete(chatId);
+      chatMessages.delete(chatId);
+      console.log(`🗑️ Очищено неактивное соединение: ${chatId}`);
+    }
+  }
+}, 10 * 60 * 1000); // Каждые 10 минут
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Active chats waiting: ${activeChats.size}`);
+  console.log(`🔗 Active connections: ${activeConnections.size}`);
 });
