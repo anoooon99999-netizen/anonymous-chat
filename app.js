@@ -120,17 +120,21 @@ function initSocket() {
             }
         });
         
-        // Слушаем когда чат активируется
+        // Слушаем когда чат активируется (найден второй участник) - УДАЛЯЕМ ЧАТ ПОЛНОСТЬЮ
         window.socket.on('chat_activated', (data) => {
-            console.log('🎉 Чат активирован:', data.chatId);
+            console.log('🎉 Чат активирован, удаляем из системы:', data.chatId);
+            // Полностью удаляем чат из всех списков
             removeChatFromList(data.chatId);
+            
+            // Если это текущий чат - показываем уведомление
             if (currentChat && data.chatId === currentChat.id) {
                 showNotification('💬 Найден собеседник! Чат активирован');
             }
         });
         
+        // Слушаем когда чат полностью удаляется с сервера
         window.socket.on('chat_removed', (data) => {
-            console.log('🗑️ Чат удален:', data.chatId);
+            console.log('🗑️ Чат полностью удален с сервера:', data.chatId);
             removeChatFromList(data.chatId);
         });
         
@@ -157,6 +161,7 @@ function initSocket() {
                     isSelfLeave: isSelfLeave
                 });
                 
+                // Показываем модалку только создателю чата и только если это не он сам вышел
                 if (!isSelfLeave && isCreator) {
                     showPartnerLeftModal(data.chatId);
                 }
@@ -230,8 +235,9 @@ function addChatToList(chat) {
 }
 
 function removeChatFromList(chatId) {
+    const initialLength = allChats.length;
     allChats = allChats.filter(chat => chat.id !== chatId);
-    console.log('🗑️ Чат удален из списка:', chatId);
+    console.log('🗑️ Чат удален из списка:', chatId, 'Было:', initialLength, 'Стало:', allChats.length);
     renderChatsList();
 }
 
@@ -260,10 +266,10 @@ function handleTyping() {
     }, 1000);
 }
 
-// Загрузка чатов с сервера
+// Загрузка чатов с сервера - загружаем только активные чаты (где participants_count = 1)
 window.loadChatsFromServer = async function() {
     try {
-        console.log('📡 Загрузка чатов с сервера...');
+        console.log('📡 Загрузка активных чатов с сервера...');
         const response = await fetch(API_URL + '/api/chats');
         
         if (!response.ok) {
@@ -273,7 +279,11 @@ window.loadChatsFromServer = async function() {
         const chats = await response.json();
         console.log('✅ Загружено чатов с сервера:', chats.length);
         
-        return chats.map(chat => ({
+        // Фильтруем только активные чаты (где participants_count = 1)
+        const activeChats = chats.filter(chat => chat.participants_count === 1);
+        console.log('🎯 Активных чатов (participants_count = 1):', activeChats.length);
+        
+        return activeChats.map(chat => ({
             id: chat.id,
             gender: chat.user_gender + ', ' + chat.user_age,
             lookingFor: chat.partner_gender + ', ' + chat.min_age + '-' + chat.max_age,
@@ -290,10 +300,10 @@ window.loadChatsFromServer = async function() {
 }
 
 async function loadAndRenderChats() {
-    console.log('🔄 Загрузка и отрисовка чатов...');
+    console.log('🔄 Загрузка и отрисовка активных чатов...');
     const chats = await window.loadChatsFromServer();
     allChats = chats;
-    console.log('📊 Всего чатов после загрузки:', allChats.length);
+    console.log('📊 Активных чатов после загрузки:', allChats.length);
     renderChatsList();
 }
 
@@ -305,7 +315,7 @@ function renderChatsList() {
     }
     
     const filteredChats = allChats.filter(chat => chat.theme === currentTheme);
-    console.log(`📊 Отфильтровано чатов для "${currentTheme}":`, filteredChats.length);
+    console.log(`📊 Отфильтровано активных чатов для "${currentTheme}":`, filteredChats.length);
 
     container.innerHTML = '';
 
@@ -313,7 +323,7 @@ function renderChatsList() {
         container.innerHTML = `
             <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
                 <div style="font-size: 48px; margin-bottom: 16px;">💬</div>
-                <div>Чатов в разделе "${currentTheme}" пока нет</div>
+                <div>Активных чатов в разделе "${currentTheme}" пока нет</div>
                 <div style="font-size: 14px; margin-top: 8px;">Создайте первый чат!</div>
             </div>
         `;
@@ -683,7 +693,7 @@ function showPartnerLeftModal(chatId) {
                 <div class="modal-title">👤 Собеседник покинул чат</div>
             </div>
             <div style="padding: 20px;">
-                <p style="margin-bottom: 20px;">Что вы хотите сделать?</p>
+                <p style="margin-bottom: 20px;">Чат был удален из системы. Что вы хотите сделать?</p>
                 <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
                     <button class="action-button" onclick="recreateChat('${chatId}')" style="width: 100%;">
                         🔄 Создать такой же чат
