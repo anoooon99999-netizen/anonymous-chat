@@ -23,6 +23,11 @@ let typingTimer = null;
 let onlineUsers = new Set();
 let lastChatParams = null;
 let shownModals = new Set();
+let waitingChat = null;
+let waitingStats = {
+    activeChats: 0,
+    onlineUsers: 0
+};
 
 // Инициализация приложения
 async function initApp() {
@@ -126,6 +131,20 @@ function initSocket() {
             }
         });
         
+        // Обработчик активации чата - переходим в чат
+        window.socket.on('chat_activated', (data) => {
+            console.log('🎉 Чат активирован:', data.chatId);
+            
+            // Если это наш чат ожидания - переходим в чат
+            if (waitingChat && data.chatId === waitingChat.id) {
+                console.log('🚀 Переходим из ожидания в активный чат');
+                startChat(waitingChat);
+                waitingChat = null;
+            }
+            
+            removeChatFromList(data.chatId);
+        });
+        
         // Слушаем создание новых чатов от всех пользователей
         window.socket.on('new_chat_created', (chat) => {
             console.log('📨 Получен новый чат от другого пользователя:', chat);
@@ -140,18 +159,10 @@ function initSocket() {
                     showNotification('📢 Создан новый чат в разделе "' + chat.theme + '"');
                 }
             }
-        });
-        
-        // Слушаем когда чат активируется (найден второй участник)
-        window.socket.on('chat_activated', (data) => {
-            console.log('🎉 Чат активирован:', data.chatId);
-            removeChatFromList(data.chatId);
             
-            if (currentChat && data.chatId === currentChat.id) {
-                showNotification(data.message || '💬 Найден собеседник! Чат активирован');
-                // Обновляем онлайн счетчик
-                onlineUsers = new Set([vkUser?.id, 'partner']);
-                updateOnlineCount();
+            // Обновляем статистику на экране ожидания
+            if (document.getElementById('waitingScreen').classList.contains('active')) {
+                updateWaitingStats();
             }
         });
         
@@ -159,6 +170,11 @@ function initSocket() {
         window.socket.on('chat_removed', (data) => {
             console.log('🗑️ Чат полностью удален с сервера:', data.chatId);
             removeChatFromList(data.chatId);
+            
+            // Обновляем статистику на экране ожидания
+            if (document.getElementById('waitingScreen').classList.contains('active')) {
+                updateWaitingStats();
+            }
         });
         
         window.socket.on('user_joined', (data) => {
@@ -337,6 +353,11 @@ async function loadAndRenderChats() {
     allChats = chats;
     console.log('📊 Активных чатов после загрузки:', allChats.length);
     renderChatsList();
+    
+    // Обновляем статистику на экране ожидания если он активен
+    if (document.getElementById('waitingScreen').classList.contains('active')) {
+        updateWaitingStats();
+    }
 }
 
 function renderChatsList() {
@@ -532,7 +553,8 @@ async function createChat() {
             showNotification('✅ Чат успешно создан! Ожидаем собеседника...');
             closeCreateChatModal();
             
-            setTimeout(() => startChat(newChat), 500);
+            // Показываем экран ожидания вместо перехода в чат
+            showWaitingScreen(newChat);
             
         } else {
             const errorText = await response.text();
@@ -543,6 +565,51 @@ async function createChat() {
         console.error('❌ Ошибка создания чата:', error);
         showNotification('❌ Ошибка создания чата: ' + error.message);
     }
+}
+
+// Функции для экрана ожидания
+function showWaitingScreen(chat) {
+    console.log('⏳ Показываем экран ожидания для чата:', chat.id);
+    
+    waitingChat = chat;
+    
+    // Обновляем статистику
+    updateWaitingStats();
+    
+    showScreen('waitingScreen');
+    
+    // Сообщаем серверу наш userId
+    if (window.socket && vkUser?.id) {
+        window.socket.emit('set_user_id', vkUser.id);
+    }
+}
+
+function updateWaitingStats() {
+    // Обновляем статистику на экране ожидания
+    const activeChatsCount = allChats.filter(chat => chat.participants_count === 1).length;
+    const onlineUsersCount = activeChatsCount + Math.floor(Math.random() * 20) + 10; // Рандомная логика для демонстрации
+    
+    waitingStats.activeChats = activeChatsCount;
+    waitingStats.onlineUsers = onlineUsersCount;
+    
+    document.getElementById('waitingChatsCount').textContent = activeChatsCount;
+    document.getElementById('waitingUsersCount').textContent = onlineUsersCount;
+}
+
+function cancelWaiting() {
+    console.log('❌ Отмена ожидания для чата:', waitingChat?.id);
+    
+    if (waitingChat && window.socket) {
+        // Покидаем чат на сервере
+        window.socket.emit('leave_chat', { 
+            chatId: waitingChat.id, 
+            userId: vkUser?.id 
+        });
+    }
+    
+    waitingChat = null;
+    showScreen('chatsScreen');
+    showNotification('❌ Ожидание отменено');
 }
 
 // Работа с чатом
@@ -1127,3 +1194,4 @@ window.support = support;
 window.leaveChat = leaveChat;
 window.addToFriends = addToFriends;
 window.reportUser = reportUser;
+window.cancelWaiting = cancelWaiting;
