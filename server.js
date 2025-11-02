@@ -11,7 +11,7 @@ const server = http.createServer(app);
 // Настройка CORS для онлайн работы
 const io = socketIo(server, {
   cors: {
-    origin: "*", // В продакшене заменить на конкретный домен
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -22,12 +22,17 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname)); // Исправлено: статика из корневой папки
 
-// Основной маршрут
+// Основной маршрут - отдаем index.html из корневой папки
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
+
+// Хранилище данных в памяти
+let activeChats = new Map();
+let activeConnections = new Map();
+let chatMessages = new Map();
 
 // API маршруты
 app.post('/api/chats', (req, res) => {
@@ -130,11 +135,6 @@ app.get('/api/messages', (req, res) => {
   const messages = chatMessages.get(chat_id);
   res.json(messages);
 });
-
-// Хранилище данных в памяти
-let activeChats = new Map();
-let activeConnections = new Map();
-let chatMessages = new Map();
 
 // Socket.io обработчики
 io.on('connection', (socket) => {
