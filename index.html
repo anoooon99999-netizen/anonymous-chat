@@ -133,6 +133,35 @@
         </div>
     </div>
 
+    <!-- Экран ожидания собеседника -->
+    <div class="screen" id="waitingScreen">
+        <div class="container">
+            <div class="waiting-content">
+                <div class="waiting-icon">💬</div>
+                <h1 class="waiting-title">Ожидаем собеседника</h1>
+                <p class="waiting-text">Ваш чат создан и виден другим пользователям</p>
+                <div class="waiting-animation">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+                <div class="waiting-stats">
+                    <div class="waiting-stat">
+                        <div class="stat-number" id="waitingChatsCount">0</div>
+                        <div class="stat-label">активных чатов</div>
+                    </div>
+                    <div class="waiting-stat">
+                        <div class="stat-number" id="waitingUsersCount">0</div>
+                        <div class="stat-label">пользователей онлайн</div>
+                    </div>
+                </div>
+                <button class="waiting-button" onclick="cancelWaiting()">
+                    ❌ Отменить ожидание
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Экран чата -->
     <div class="screen" id="chatRoomScreen">
         <div class="container">
