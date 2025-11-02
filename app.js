@@ -1,6 +1,10 @@
-// Конфигурация
+// Конфигурация для онлайн работы
 const API_URL = window.location.origin;
 const SOCKET_URL = window.location.origin;
+
+// Инициализация Socket.io
+const socket = io(SOCKET_URL);
+window.socket = socket;
 
 // Глобальные переменные
 let allChats = [];
@@ -80,13 +84,13 @@ function updateUserInterface(userInfo) {
 }
 
 // Переключение вкладок чатов
-function switchChatTab(theme) {
+function switchChatTab(theme, element) {
     console.log('🔄 Переключение на вкладку:', theme);
     
     currentTheme = theme;
     
     document.querySelectorAll('.chat-tab').forEach(tab => tab.classList.remove('active'));
-    event.target.classList.add('active');
+    element.classList.add('active');
     
     const createChatText = document.getElementById('createChatText');
     if (createChatText) {
@@ -110,29 +114,30 @@ function initSocket() {
             }
         });
         
-        // Слушаем создание новых чатов от всех пользователей
         window.socket.on('new_chat_created', (chat) => {
             console.log('📨 Получен новый чат от другого пользователя:', chat);
-            addChatToList(chat);
             
-            if (chat.user_id !== vkUser?.id) {
-                showNotification('📢 Создан новый чат в разделе "' + chat.theme + '"');
+            const isMyChat = chat.user_id === vkUser?.id;
+            const existingChatIndex = allChats.findIndex(c => c.id === chat.id);
+            
+            if (existingChatIndex === -1) {
+                addChatToList(chat);
+                
+                if (!isMyChat) {
+                    showNotification('📢 Создан новый чат в разделе "' + chat.theme + '"');
+                }
             }
         });
         
-        // Слушаем когда чат активируется (найден второй участник) - УДАЛЯЕМ ЧАТ ПОЛНОСТЬЮ
         window.socket.on('chat_activated', (data) => {
             console.log('🎉 Чат активирован, удаляем из системы:', data.chatId);
-            // Полностью удаляем чат из всех списков
             removeChatFromList(data.chatId);
             
-            // Если это текущий чат - показываем уведомление
             if (currentChat && data.chatId === currentChat.id) {
                 showNotification('💬 Найден собеседник! Чат активирован');
             }
         });
         
-        // Слушаем когда чат полностью удаляется с сервера
         window.socket.on('chat_removed', (data) => {
             console.log('🗑️ Чат полностью удален с сервера:', data.chatId);
             removeChatFromList(data.chatId);
@@ -161,7 +166,6 @@ function initSocket() {
                     isSelfLeave: isSelfLeave
                 });
                 
-                // Показываем модалку только создателю чата и только если это не он сам вышел
                 if (!isSelfLeave && isCreator) {
                     showPartnerLeftModal(data.chatId);
                 }
@@ -222,15 +226,13 @@ function addChatToList(chat) {
         userId: chat.user_id
     };
     
-    const existingChatIndex = allChats.findIndex(c => c.id === newChat.id);
-    if (existingChatIndex === -1) {
-        allChats.unshift(newChat);
-        console.log('✅ Чат добавлен в allChats. Всего чатов:', allChats.length);
-        
-        if (newChat.theme === currentTheme) {
-            console.log('🎨 Обновляем отображение для темы:', currentTheme);
-            renderChatsList();
-        }
+    allChats = allChats.filter(c => c.id !== newChat.id);
+    allChats.unshift(newChat);
+    console.log('✅ Чат добавлен в allChats. Всего чатов:', allChats.length);
+    
+    if (newChat.theme === currentTheme) {
+        console.log('🎨 Обновляем отображение для темы:', currentTheme);
+        renderChatsList();
     }
 }
 
@@ -266,7 +268,7 @@ function handleTyping() {
     }, 1000);
 }
 
-// Загрузка чатов с сервера - загружаем только активные чаты (где participants_count = 1)
+// Загрузка чатов с сервера
 window.loadChatsFromServer = async function() {
     try {
         console.log('📡 Загрузка активных чатов с сервера...');
@@ -279,7 +281,6 @@ window.loadChatsFromServer = async function() {
         const chats = await response.json();
         console.log('✅ Загружено чатов с сервера:', chats.length);
         
-        // Фильтруем только активные чаты (где participants_count = 1)
         const activeChats = chats.filter(chat => chat.participants_count === 1);
         console.log('🎯 Активных чатов (participants_count = 1):', activeChats.length);
         
@@ -962,6 +963,8 @@ function setupEventListeners() {
                 sendMessage();
             }
         });
+        
+        messageInput.addEventListener('input', handleTyping);
     }
 
     const minSlider = document.getElementById('minAgeSlider');
@@ -973,6 +976,81 @@ function setupEventListeners() {
     }
     
     updateAgeRange();
+}
+
+// Дополнительные функции
+function enableNotifications() {
+    if ('Notification' in window) {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                showNotification('✅ Уведомления включены');
+            } else {
+                showNotification('❌ Уведомления отключены');
+            }
+        });
+    } else {
+        showNotification('❌ Браузер не поддерживает уведомления');
+    }
+}
+
+function shareApp() {
+    if (navigator.share) {
+        navigator.share({
+            title: 'Анонимный чат',
+            text: 'Общайся анонимно в реальном времени!',
+            url: window.location.href
+        });
+    } else {
+        showNotification('📱 Поделитесь ссылкой: ' + window.location.href);
+    }
+}
+
+function openMyChats() {
+    showScreen('chatsScreen');
+    showNotification('📋 Переход к списку чатов');
+}
+
+function inviteFriends() {
+    showNotification('👥 Функция приглашения друзей в разработке');
+}
+
+function openNotificationsSettings() {
+    showNotification('🔔 Настройки уведомлений в разработке');
+}
+
+function openPrivacySettings() {
+    showNotification('🔒 Настройки конфиденциальности в разработке');
+}
+
+function addToFavorites() {
+    showNotification('⭐ Добавлено в избранное');
+}
+
+function openAppInfo() {
+    showNotification('ℹ️ Версия 1.0.0 | Анонимный чат');
+}
+
+function support() {
+    showNotification('📞 Связь с поддержкой: support@chat.ru');
+}
+
+function leaveChat() {
+    if (currentChat && window.socket) {
+        window.socket.emit('leave_chat', { 
+            chatId: currentChat.id, 
+            userId: vkUser?.id 
+        });
+    }
+    showScreen('chatsScreen');
+    showNotification('🚪 Вы вышли из чата');
+}
+
+function addToFriends() {
+    showNotification('👤 Функция добавления в друзья в разработке');
+}
+
+function reportUser() {
+    showNotification('⚠️ Жалоба отправлена модераторам');
 }
 
 // Запуск приложения
@@ -992,3 +1070,15 @@ window.sendMessage = sendMessage;
 window.handleTyping = handleTyping;
 window.recreateChat = recreateChat;
 window.goToChats = goToChats;
+window.enableNotifications = enableNotifications;
+window.shareApp = shareApp;
+window.openMyChats = openMyChats;
+window.inviteFriends = inviteFriends;
+window.openNotificationsSettings = openNotificationsSettings;
+window.openPrivacySettings = openPrivacySettings;
+window.addToFavorites = addToFavorites;
+window.openAppInfo = openAppInfo;
+window.support = support;
+window.leaveChat = leaveChat;
+window.addToFriends = addToFriends;
+window.reportUser = reportUser;
