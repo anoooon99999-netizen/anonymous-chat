@@ -109,11 +109,24 @@ function initSocket() {
         
         window.socket.on('connect', () => {
             console.log('✅ Connected to server');
+            // Сообщаем серверу наш userId при подключении
+            if (vkUser?.id) {
+                window.socket.emit('set_user_id', vkUser.id);
+            }
             if (currentChat) {
                 window.socket.emit('join_chat', { chatId: currentChat.id, userId: vkUser?.id });
             }
         });
         
+        // Получение истории сообщений от сервера
+        window.socket.on('chat_messages', (data) => {
+            console.log('📨 Получена история сообщений:', data.messages.length);
+            if (currentChat && data.chatId === currentChat.id) {
+                renderMessages(data.messages);
+            }
+        });
+        
+        // Слушаем создание новых чатов от всех пользователей
         window.socket.on('new_chat_created', (chat) => {
             console.log('📨 Получен новый чат от другого пользователя:', chat);
             
@@ -129,15 +142,20 @@ function initSocket() {
             }
         });
         
+        // Слушаем когда чат активируется (найден второй участник)
         window.socket.on('chat_activated', (data) => {
-            console.log('🎉 Чат активирован, удаляем из системы:', data.chatId);
+            console.log('🎉 Чат активирован:', data.chatId);
             removeChatFromList(data.chatId);
             
             if (currentChat && data.chatId === currentChat.id) {
-                showNotification('💬 Найден собеседник! Чат активирован');
+                showNotification(data.message || '💬 Найден собеседник! Чат активирован');
+                // Обновляем онлайн счетчик
+                onlineUsers = new Set([vkUser?.id, 'partner']);
+                updateOnlineCount();
             }
         });
         
+        // Слушаем когда чат полностью удаляется с сервера
         window.socket.on('chat_removed', (data) => {
             console.log('🗑️ Чат полностью удален с сервера:', data.chatId);
             removeChatFromList(data.chatId);
@@ -226,10 +244,14 @@ function addChatToList(chat) {
         userId: chat.user_id
     };
     
+    // Удаляем возможный дубликат
     allChats = allChats.filter(c => c.id !== newChat.id);
+    
+    // Добавляем в начало списка
     allChats.unshift(newChat);
     console.log('✅ Чат добавлен в allChats. Всего чатов:', allChats.length);
     
+    // Немедленно обновляем интерфейс если это текущая тема
     if (newChat.theme === currentTheme) {
         console.log('🎨 Обновляем отображение для темы:', currentTheme);
         renderChatsList();
@@ -247,7 +269,16 @@ function updateOnlineCount() {
     const count = onlineUsers.size;
     const onlineCountElement = document.getElementById('onlineCount');
     if (onlineCountElement) {
-        onlineCountElement.textContent = count + ' онлайн';
+        if (count === 1) {
+            onlineCountElement.textContent = '1 участник • Ожидаем собеседника';
+            onlineCountElement.style.color = 'var(--warning)';
+        } else if (count === 2) {
+            onlineCountElement.textContent = '2 участника • Чат активен';
+            onlineCountElement.style.color = 'var(--success)';
+        } else {
+            onlineCountElement.textContent = count + ' онлайн';
+            onlineCountElement.style.color = 'var(--text-secondary)';
+        }
     }
 }
 
@@ -484,6 +515,7 @@ async function createChat() {
                 userId: vkUser?.id || 'anonymous'
             };
             
+            // Добавляем чат и немедленно обновляем интерфейс
             allChats.unshift(newChat);
             console.log('✅ Чат добавлен в allChats. Теперь всего чатов:', allChats.length);
             
@@ -543,9 +575,17 @@ async function startChat(chat) {
     }
     
     if (window.socket) {
-        window.socket.emit('join_chat', { chatId: chat.id, userId: vkUser?.id });
+        // Сообщаем серверу наш userId
+        window.socket.emit('set_user_id', vkUser?.id || 'anonymous');
+        
+        // Присоединяемся к чату
+        window.socket.emit('join_chat', { 
+            chatId: chat.id, 
+            userId: vkUser?.id || 'anonymous' 
+        });
     }
     
+    // Загружаем сообщения через API (резервный способ)
     await loadMessages(chat.id);
     
     setTimeout(() => {
@@ -575,39 +615,44 @@ async function loadMessages(chatId) {
         const messages = await response.json();
         console.log('✅ Загружено сообщений:', messages.length);
         
-        const container = document.getElementById('messagesContainer');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
-        if (messages.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                    <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
-                    <div>Пока нет сообщений</div>
-                    <div style="font-size: 14px; margin-top: 8px;">Начните общение первым!</div>
-                </div>
-            `;
-            return;
-        }
-        
-        messages.forEach(msg => {
-            addMessageToChat(msg);
-        });
-        
-        container.scrollTop = container.scrollHeight;
+        renderMessages(messages);
         
     } catch (error) {
         console.error('❌ Ошибка загрузки сообщений:', error);
-        showNotification('Ошибка загрузки сообщений');
+        // Не показываем уведомление, т.к. сообщения могут прийти через socket
     }
+}
+
+function renderMessages(messages) {
+    const container = document.getElementById('messagesContainer');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (messages.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
+                <div>Пока нет сообщений</div>
+                <div style="font-size: 14px; margin-top: 8px;">Начните общение первым!</div>
+            </div>
+        `;
+        return;
+    }
+    
+    messages.forEach(msg => {
+        addMessageToChat(msg);
+    });
+    
+    container.scrollTop = container.scrollHeight;
 }
 
 function addMessageToChat(message) {
     const container = document.getElementById('messagesContainer');
     if (!container) return;
     
-    if (container.innerHTML.includes('Пока нет сообщений')) {
+    // Очищаем placeholder если он есть
+    if (container.innerHTML.includes('Пока нет сообщений') || container.innerHTML.includes('Загружаем чат')) {
         container.innerHTML = '';
     }
     
