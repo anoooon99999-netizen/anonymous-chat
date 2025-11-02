@@ -128,7 +128,7 @@ app.post('/api/messages', (req, res) => {
   messages.push(messageObj);
   chatMessages.set(chat_id, messages);
   
-  // Отправляем сообщение всем участникам чата
+  // Отправляем сообщение всем участников чата
   io.to(chat_id).emit('new_message', messageObj);
   
   res.json(messageObj);
@@ -217,8 +217,8 @@ io.on('connection', (socket) => {
     console.log(`👥 Попытка присоединения: user ${userId} к чату ${chatId}`);
     
     // Проверяем блокировки
-    const chat = activeChats.get(chatId);
-    if (chat && isBlocked(chat.user_id, userId)) {
+    const targetChat = activeChats.get(chatId);
+    if (targetChat && isBlocked(targetChat.user_id, userId)) {
       socket.emit('error', { message: 'Вы заблокированы создателем чата' });
       return;
     }
@@ -264,16 +264,16 @@ io.on('connection', (socket) => {
         return;
     }
     
-    const chat = activeChats.get(chatId);
+    const chatData = activeChats.get(chatId);
     
     // Проверяем можно ли присоединиться
-    if (chat.participants_count !== 1) {
+    if (chatData.participants_count !== 1) {
         socket.emit('error', { message: 'Chat is already full' });
         return;
     }
     
     // Если создатель присоединяется к своему чату
-    if (chat.user_id === userId) {
+    if (chatData.user_id === userId) {
         console.log(`👑 Создатель ${userId} присоединяется к своему чату ${chatId}`);
         socket.join(chatId);
         
@@ -293,26 +293,26 @@ io.on('connection', (socket) => {
     console.log(`✅ User ${userId} присоединяется к чату ${chatId} как второй участник`);
     
     // Активируем чат - находим второго участника
-    chat.participants_count = 2;
+    chatData.participants_count = 2;
     
     // Перемещаем чат в активные соединения
     activeChats.delete(chatId);
     activeConnections.set(chatId, {
-        ...chat,
-        participants: [chat.user_id, userId],
+        ...chatData,
+        participants: [chatData.user_id, userId],
         participants_count: 2
     });
     
     // УДАЛЯЕМ чат из общего списка для всех
     io.emit('chat_activated', { chatId });
     
-    console.log(`🎉 Чат ${chatId} активирован! Участники: ${chat.user_id} и ${userId}`);
+    console.log(`🎉 Чат ${chatId} активирован! Участники: ${chatData.user_id} и ${userId}`);
     
     // Присоединяем нового участника к комнате
     socket.join(chatId);
     
     // Находим сокет создателя и присоединяем его тоже
-    const creatorSocketId = userSockets.get(chat.user_id);
+    const creatorSocketId = userSockets.get(chatData.user_id);
     if (creatorSocketId && io.sockets.sockets.get(creatorSocketId)) {
         const creatorSocket = io.sockets.sockets.get(creatorSocketId);
         creatorSocket.join(chatId);
@@ -345,7 +345,7 @@ io.on('connection', (socket) => {
     io.to(chatId).emit('online_users', {
         chatId,
         count: 2,
-        users: [chat.user_id, userId]
+        users: [chatData.user_id, userId]
     });
     
     // Отправляем историю сообщений новому участнику
@@ -411,10 +411,10 @@ io.on('connection', (socket) => {
       
     } else if (activeChat) {
       // Чат ожидает участника (1 участник)
-      const chat = activeChat;
+      const waitingChat = activeChat;
       
       // Если создатель покидает свой чат - полностью удаляем его
-      if (chat.user_id === userId) {
+      if (waitingChat.user_id === userId) {
         activeChats.delete(chatId);
         chatMessages.delete(chatId);
         
