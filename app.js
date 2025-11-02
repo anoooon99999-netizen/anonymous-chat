@@ -28,6 +28,7 @@ let waitingStats = {
     activeChats: 0,
     onlineUsers: 0
 };
+let blockedUsers = new Set(JSON.parse(localStorage.getItem('blockedUsers') || '[]'));
 
 // Инициализация приложения
 async function initApp() {
@@ -41,6 +42,8 @@ async function initApp() {
             vkUser = userInfo;
             updateUserInterface(userInfo);
             showNotification('Добро пожаловать, ' + userInfo.first_name + '!');
+            // Показываем VK уведомление
+            await showVKNotification('Добро пожаловать в анонимный чат!');
         } else {
             throw new Error('VK Bridge not available');
         }
@@ -50,7 +53,8 @@ async function initApp() {
         vkUser = { 
             id: 'user_' + Math.random().toString(36).substr(2, 9),
             first_name: 'Аноним',
-            last_name: ''
+            last_name: '',
+            sex: Math.random() > 0.5 ? 2 : 1
         };
         updateUserInterface(vkUser);
         showNotification('Анонимный режим - можно создавать чаты');
@@ -85,6 +89,131 @@ function updateUserInterface(userInfo) {
     
     if (currentAvatarElement) {
         currentAvatarElement.textContent = userInfo.first_name.charAt(0);
+    }
+}
+
+// Функция VK уведомлений
+async function showVKNotification(message) {
+    try {
+        if (typeof vkBridge !== 'undefined' && isVK) {
+            await vkBridge.send('VKWebAppShowOrderBox', {
+                message: message
+            });
+        }
+    } catch (error) {
+        console.error('VK notification error:', error);
+    }
+}
+
+// Функция добавления в друзья через VK API
+async function addToFriends() {
+    if (!currentChat || !currentChat.userId) {
+        showNotification('❌ Нет активного собеседника для добавления в друзья');
+        return;
+    }
+
+    try {
+        if (typeof vkBridge !== 'undefined' && isVK) {
+            // Используем VK API для добавления в друзья
+            const result = await vkBridge.send('VKWebAppCallAPIMethod', {
+                method: 'friends.add',
+                params: {
+                    user_id: currentChat.userId,
+                    text: 'Привет! Познакомились в анонимном чате',
+                    v: '5.131'
+                }
+            });
+            
+            if (result) {
+                showNotification('✅ Заявка в друзья отправлена!');
+                await showVKNotification('Пользователь добавлен в друзья');
+                userStats.friends++;
+                saveUserStats();
+                updateProfileStats();
+            }
+        } else {
+            // Режим вне VK - эмуляция
+            showNotification('✅ Заявка в друзья отправлена (эмуляция)');
+            userStats.friends++;
+            saveUserStats();
+            updateProfileStats();
+        }
+    } catch (error) {
+        console.error('Error adding friend:', error);
+        showNotification('❌ Ошибка при добавлении в друзья');
+    }
+}
+
+// Функция блокировки пользователя
+function blockUser() {
+    if (!currentChat || !currentChat.userId) {
+        showNotification('❌ Нет активного собеседника для блокировки');
+        return;
+    }
+
+    // Добавляем в локальное хранилище блокировок
+    blockedUsers.add(currentChat.userId);
+    localStorage.setItem('blockedUsers', JSON.stringify([...blockedUsers]));
+    
+    // Отправляем на сервер
+    if (window.socket) {
+        window.socket.emit('block_user', {
+            userId: vkUser?.id,
+            targetUserId: currentChat.userId
+        });
+    }
+    
+    showNotification('🚫 Пользователь заблокирован');
+    showVKNotification('Пользователь заблокирован');
+    
+    // Выходим из чата после блокировки
+    setTimeout(() => {
+        leaveChat();
+    }, 1500);
+}
+
+// Функция проверки блокировок
+function isUserBlocked(userId) {
+    return blockedUsers.has(userId);
+}
+
+// Функция inviteFriends для использования VK API
+async function inviteFriends() {
+    try {
+        if (typeof vkBridge !== 'undefined' && isVK) {
+            const result = await vkBridge.send('VKWebAppShowInviteBox');
+            if (result) {
+                showNotification('✅ Приглашение отправлено!');
+                await showVKNotification('Приглашение другу отправлено');
+            }
+        } else {
+            showNotification('👥 Поделитесь ссылкой: ' + window.location.href);
+        }
+    } catch (error) {
+        console.error('Error inviting friends:', error);
+        showNotification('👥 Поделитесь ссылкой: ' + window.location.href);
+    }
+}
+
+// Функция shareApp для VK
+async function shareApp() {
+    try {
+        if (typeof vkBridge !== 'undefined' && isVK) {
+            await vkBridge.send('VKWebAppShowShareBox', {
+                link: window.location.href
+            });
+        } else if (navigator.share) {
+            await navigator.share({
+                title: 'Анонимный чат',
+                text: 'Общайся анонимно в реальном времени!',
+                url: window.location.href
+            });
+        } else {
+            showNotification('📱 Поделитесь ссылкой: ' + window.location.href);
+        }
+    } catch (error) {
+        console.error('Error sharing app:', error);
+        showNotification('📱 Поделитесь ссылкой: ' + window.location.href);
     }
 }
 
@@ -235,6 +364,10 @@ function initSocket() {
                 onlineUsers = new Set(data.users);
                 updateOnlineCount();
             }
+        });
+        
+        window.socket.on('user_blocked', (data) => {
+            showNotification('🚫 Пользователь заблокирован');
         });
         
         window.socket.on('error', (data) => {
@@ -1105,25 +1238,9 @@ function enableNotifications() {
     }
 }
 
-function shareApp() {
-    if (navigator.share) {
-        navigator.share({
-            title: 'Анонимный чат',
-            text: 'Общайся анонимно в реальном времени!',
-            url: window.location.href
-        });
-    } else {
-        showNotification('📱 Поделитесь ссылкой: ' + window.location.href);
-    }
-}
-
 function openMyChats() {
     showScreen('chatsScreen');
     showNotification('📋 Переход к списку чатов');
-}
-
-function inviteFriends() {
-    showNotification('👥 Функция приглашения друзей в разработке');
 }
 
 function openNotificationsSettings() {
@@ -1155,10 +1272,6 @@ function leaveChat() {
     }
     showScreen('chatsScreen');
     showNotification('🚪 Вы вышли из чата');
-}
-
-function addToFriends() {
-    showNotification('👤 Функция добавления в друзья в разработке');
 }
 
 function reportUser() {
@@ -1193,5 +1306,7 @@ window.openAppInfo = openAppInfo;
 window.support = support;
 window.leaveChat = leaveChat;
 window.addToFriends = addToFriends;
+window.blockUser = blockUser;
 window.reportUser = reportUser;
 window.cancelWaiting = cancelWaiting;
+window.showVKNotification = showVKNotification;
