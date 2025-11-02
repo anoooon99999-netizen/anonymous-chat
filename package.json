@@ -1,7 +1,7 @@
 {
   "name": "anonymous-chat-app",
   "version": "1.0.0",
-  "description": "Anonymous chat application for VK",
+  "description": "Anonymous chat application for VK Mini Apps",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -17,7 +17,7 @@
   "engines": {
     "node": ">=16.0.0"
   },
-  "keywords": ["chat", "anonymous", "vk", "realtime"],
+  "keywords": ["chat", "anonymous", "vk", "realtime", "vk-mini-apps"],
   "author": "Your Name",
   "license": "MIT"
 }
