@@ -477,9 +477,18 @@ setInterval(() => {
 }, 10 * 60 * 1000); // Каждые 10 минут
 
 // Запуск сервера
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Active chats waiting: ${activeChats.size}`);
   console.log(`🔗 Active connections: ${activeConnections.size}`);
   console.log(`🌐 Access the app at: http://localhost:${PORT}`);
+});
+
+// Обработка ошибок
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
 });
