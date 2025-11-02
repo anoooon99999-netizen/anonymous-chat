@@ -34,6 +34,7 @@ let activeChats = new Map();      // Чаты с 1 участником (ожи�
 let activeConnections = new Map(); // Активные чаты с 2 участниками
 let chatMessages = new Map();     // Сообщения всех чатов
 let userSockets = new Map();      // Привязка userId к socketId
+let userBlocks = new Map();       // Блокировки пользователей
 
 // API маршруты
 app.post('/api/chats', (req, res) => {
@@ -145,6 +146,35 @@ app.get('/api/messages', (req, res) => {
   res.json(messages);
 });
 
+// API для работы с блокировками
+app.post('/api/block-user', (req, res) => {
+  try {
+    const { userId, targetUserId } = req.body;
+    
+    if (!userBlocks.has(userId)) {
+      userBlocks.set(userId, new Set());
+    }
+    
+    userBlocks.get(userId).add(targetUserId);
+    
+    console.log(`🚫 User ${userId} blocked user ${targetUserId}`);
+    
+    res.json({ success: true, message: 'User blocked' });
+  } catch (error) {
+    console.error('Block user error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// API для проверки блокировок
+app.get('/api/check-blocked', (req, res) => {
+  const { userId, targetUserId } = req.query;
+  
+  const isBlocked = userBlocks.has(userId) && userBlocks.get(userId).has(targetUserId);
+  
+  res.json({ blocked: isBlocked });
+});
+
 // Socket.io обработчики
 io.on('connection', (socket) => {
   console.log('🔗 User connected:', socket.id);
@@ -156,11 +186,42 @@ io.on('connection', (socket) => {
     console.log(`📝 User ${userId} associated with socket ${socket.id}`);
   });
   
+  // Обработчик блокировки пользователя
+  socket.on('block_user', (data) => {
+    const { userId, targetUserId } = data;
+    
+    if (!userBlocks.has(userId)) {
+      userBlocks.set(userId, new Set());
+    }
+    
+    userBlocks.get(userId).add(targetUserId);
+    
+    console.log(`🚫 Socket block: User ${userId} blocked user ${targetUserId}`);
+    
+    // Уведомляем пользователя
+    socket.emit('user_blocked', { 
+      targetUserId,
+      message: 'Пользователь заблокирован'
+    });
+  });
+  
+  // Функция проверки блокировок
+  function isBlocked(userId, targetUserId) {
+    return userBlocks.has(userId) && userBlocks.get(userId).has(targetUserId);
+  }
+  
   // Присоединение к чату
   socket.on('join_chat', (data) => {
     const { chatId, userId } = data;
     
     console.log(`👥 Попытка присоединения: user ${userId} к чату ${chatId}`);
+    
+    // Проверяем блокировки
+    const chat = activeChats.get(chatId);
+    if (chat && isBlocked(chat.user_id, userId)) {
+      socket.emit('error', { message: 'Вы заблокированы создателем чата' });
+      return;
+    }
     
     // Сохраняем userId для этого сокета
     userSockets.set(userId, socket.id);
