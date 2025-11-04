@@ -24,6 +24,41 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname)); // Статика из корневой папки
 
+// ✅ ТЕСТОВЫЕ МАРШРУТЫ - ДОБАВЛЕНО
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API работает!', 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    activeChats: activeChats.size,
+    activeConnections: activeConnections.size
+  });
+});
+
+app.get('/api/chats/test', (req, res) => {
+  const testChats = [
+    {
+      id: 'test-chat-1',
+      user_gender: 'male',
+      user_age: 25,
+      partner_gender: 'female', 
+      theme: 'Общение',
+      participants_count: 1,
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'test-chat-2', 
+      user_gender: 'female',
+      user_age: 22,
+      partner_gender: 'male',
+      theme: 'Флирт',
+      participants_count: 1,
+      created_at: new Date().toISOString()
+    }
+  ];
+  res.json(testChats);
+});
+
 // Основной маршрут
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -127,7 +162,7 @@ app.post('/api/messages', (req, res) => {
   messages.push(messageObj);
   chatMessages.set(chat_id, messages);
   
-  // Отправляем сообщение всем участникам чата
+  // Отправляем сообщение всем участников чата
   io.to(chat_id).emit('new_message', messageObj);
   
   res.json(messageObj);
@@ -421,4 +456,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`📊 Active chats waiting: ${activeChats.size}`);
   console.log(`🔗 Active connections: ${activeConnections.size}`);
   console.log(`🌐 Access the app at: http://localhost:${PORT}`);
+  console.log(`✅ Test API: https://anonymous-chat-mvgx.onrender.com/api/test`);
 });
