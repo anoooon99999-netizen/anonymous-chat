@@ -1,10 +1,10 @@
 // Конфигурация для онлайн работы
-const API_URL = window.location.origin;
-const SOCKET_URL = window.location.origin;
+const API_URL = "https://anonymous-chat-mvgx.onrender.com";
+const SOCKET_URL = "https://anonymous-chat-mvgx.onrender.com";
 
 // Инициализация Socket.io
-//const socket = io(SOCKET_URL);
-//window.socket = socket;
+const socket = io(SOCKET_URL);
+window.socket = socket;
 // ✅ ДОБАВЬТЕ ЭТОТ КОД ЗДЕСЬ
 // Инициализация VK
 if (typeof vkBridge !== 'undefined') {
