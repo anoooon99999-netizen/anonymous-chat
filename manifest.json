@@ -1,0 +1,22 @@
+{
+  "url": "https://anonymous-chat-mvgx.onrender.com",
+  "name": "Анонимный Чат | Тайные Встречи, Настоящие Эмоции",
+  "launch_url": "/index.html",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#1a1a1a",
+  "theme_color": "#4a76a8",
+  "icons": [
+    {
+      "src": "https://anonymous-chat-mvgx.onrender.com/icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://anonymous-chat-mvgx.onrender.com/icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
