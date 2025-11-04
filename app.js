@@ -2,22 +2,6 @@
 const API_URL = "https://anonymous-chat-mvgx.onrender.com";
 const SOCKET_URL = "https://anonymous-chat-mvgx.onrender.com";
 
-// Инициализация Socket.io
-
-window.socket = socket;
-// ✅ ДОБАВЬТЕ ЭТОТ КОД ЗДЕСЬ
-// Инициализация VK
-if (typeof vkBridge !== 'undefined') {
-  vkBridge.send('VKWebAppInit')
-    .then(() => {
-      console.log('✅ VK Mini App инициализировано!');
-      isVK = true; // Устанавливаем флаг что мы в VK
-    })
-    .catch(error => {
-      console.error('VK Init error:', error);
-    });
-}
-
 // Глобальные переменные
 let allChats = [];
 let userStats = {
@@ -27,8 +11,6 @@ let userStats = {
     daysActive: 1,
     reputation: 150
 };
-let vkUser = null;
-let currentChat = null;
 let isVK = false;
 let currentTheme = 'Общение';
 let typingTimer = null;
@@ -45,7 +27,7 @@ async function initApp() {
             await vkBridge.send('VKWebAppInit');
             isVK = true;
             const userInfo = await vkBridge.send('VKWebAppGetUserInfo');
-            vkUser = userInfo;
+            window.vkUser = userInfo;
             updateUserInterface(userInfo);
             showNotification('Добро пожаловать, ' + userInfo.first_name + '!');
         } else {
@@ -54,12 +36,12 @@ async function initApp() {
     } catch (error) {
         console.log('Приложение запущено вне VK:', error.message);
         isVK = false;
-        vkUser = { 
+        window.vkUser = { 
             id: 'user_' + Math.random().toString(36).substr(2, 9),
             first_name: 'Аноним',
             last_name: ''
         };
-        updateUserInterface(vkUser);
+        updateUserInterface(window.vkUser);
         showNotification('Анонимный режим - можно создавать чаты');
     }
 
@@ -122,18 +104,18 @@ function initSocket() {
         window.socket.on('connect', () => {
             console.log('✅ Connected to server');
             // Сообщаем серверу наш userId при подключении
-            if (vkUser?.id) {
-                window.socket.emit('set_user_id', vkUser.id);
+            if (window.vkUser?.id) {
+                window.socket.emit('set_user_id', window.vkUser.id);
             }
-            if (currentChat) {
-                window.socket.emit('join_chat', { chatId: currentChat.id, userId: vkUser?.id });
+            if (window.currentChat) {
+                window.socket.emit('join_chat', { chatId: window.currentChat.id, userId: window.vkUser?.id });
             }
         });
         
         // Получение истории сообщений от сервера
         window.socket.on('chat_messages', (data) => {
             console.log('📨 Получена история сообщений:', data.messages.length);
-            if (currentChat && data.chatId === currentChat.id) {
+            if (window.currentChat && data.chatId === window.currentChat.id) {
                 renderMessages(data.messages);
             }
         });
@@ -142,7 +124,7 @@ function initSocket() {
         window.socket.on('new_chat_created', (chat) => {
             console.log('📨 Получен новый чат от другого пользователя:', chat);
             
-            const isMyChat = chat.user_id === vkUser?.id;
+            const isMyChat = chat.user_id === window.vkUser?.id;
             const existingChatIndex = allChats.findIndex(c => c.id === chat.id);
             
             if (existingChatIndex === -1) {
@@ -159,10 +141,10 @@ function initSocket() {
             console.log('🎉 Чат активирован:', data.chatId);
             removeChatFromList(data.chatId);
             
-            if (currentChat && data.chatId === currentChat.id) {
+            if (window.currentChat && data.chatId === window.currentChat.id) {
                 showNotification(data.message || '💬 Найден собеседник! Чат активирован');
                 // Обновляем онлайн счетчик
-                onlineUsers = new Set([vkUser?.id, 'partner']);
+                onlineUsers = new Set([window.vkUser?.id, 'partner']);
                 updateOnlineCount();
             }
         });
@@ -174,7 +156,7 @@ function initSocket() {
         });
         
         window.socket.on('user_joined', (data) => {
-            if (currentChat && data.chatId === currentChat.id) {
+            if (window.currentChat && data.chatId === window.currentChat.id) {
                 onlineUsers.add(data.userId);
                 updateOnlineCount();
                 showNotification('👤 Собеседник присоединился к чату');
@@ -182,12 +164,12 @@ function initSocket() {
         });
         
         window.socket.on('user_left', (data) => {
-            if (currentChat && data.chatId === currentChat.id) {
+            if (window.currentChat && data.chatId === window.currentChat.id) {
                 onlineUsers.delete(data.userId);
                 updateOnlineCount();
                 
-                const isCreator = currentChat.userId === vkUser?.id;
-                const isSelfLeave = data.userId === vkUser?.id;
+                const isCreator = window.currentChat.userId === window.vkUser?.id;
+                const isSelfLeave = data.userId === window.vkUser?.id;
                 
                 console.log('🚪 Пользователь вышел из чата:', {
                     chatId: data.chatId,
@@ -203,13 +185,13 @@ function initSocket() {
         });
         
         window.socket.on('new_message', (message) => {
-            if (currentChat && message.chat_id === currentChat.id) {
+            if (window.currentChat && message.chat_id === window.currentChat.id) {
                 addMessageToChat(message);
             }
         });
         
         window.socket.on('typing_start', (data) => {
-            if (currentChat && data.chatId === currentChat.id) {
+            if (window.currentChat && data.chatId === window.currentChat.id) {
                 const typingIndicator = document.getElementById('typingIndicator');
                 if (typingIndicator) {
                     typingIndicator.style.display = 'inline';
@@ -218,7 +200,7 @@ function initSocket() {
         });
         
         window.socket.on('typing_stop', (data) => {
-            if (currentChat && data.chatId === currentChat.id) {
+            if (window.currentChat && data.chatId === window.currentChat.id) {
                 const typingIndicator = document.getElementById('typingIndicator');
                 if (typingIndicator) {
                     typingIndicator.style.display = 'none';
@@ -227,7 +209,7 @@ function initSocket() {
         });
         
         window.socket.on('online_users', (data) => {
-            if (currentChat && data.chatId === currentChat.id) {
+            if (window.currentChat && data.chatId === window.currentChat.id) {
                 onlineUsers = new Set(data.users);
                 updateOnlineCount();
             }
@@ -295,18 +277,18 @@ function updateOnlineCount() {
 }
 
 function handleTyping() {
-    if (!currentChat || !window.socket) return;
+    if (!window.currentChat || !window.socket) return;
     
     window.socket.emit('typing_start', { 
-        chatId: currentChat.id, 
-        userId: vkUser?.id 
+        chatId: window.currentChat.id, 
+        userId: window.vkUser?.id 
     });
     
     clearTimeout(typingTimer);
     typingTimer = setTimeout(() => {
         window.socket.emit('typing_stop', { 
-            chatId: currentChat.id, 
-            userId: vkUser?.id 
+            chatId: window.currentChat.id, 
+            userId: window.vkUser?.id 
         });
     }, 1000);
 }
@@ -491,7 +473,7 @@ async function createChat() {
     };
 
     const chatData = {
-        user_id: vkUser?.id || 'anonymous',
+        user_id: window.vkUser?.id || 'anonymous',
         user_gender: myGender,
         user_age: myAge,
         partner_gender: partnerGender,
@@ -524,7 +506,7 @@ async function createChat() {
                 theme: currentTheme,
                 participants_count: 1,
                 timestamp: Date.now(),
-                userId: vkUser?.id || 'anonymous'
+                userId: window.vkUser?.id || 'anonymous'
             };
             
             // Добавляем чат и немедленно обновляем интерфейс
@@ -563,11 +545,11 @@ async function startChat(chat) {
     
     shownModals.clear();
     
-    if (currentChat && window.socket) {
-        window.socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
+    if (window.currentChat && window.socket) {
+        window.socket.emit('leave_chat', { chatId: window.currentChat.id, userId: window.vkUser?.id });
     }
     
-    currentChat = chat;
+    window.currentChat = chat;
     
     const chatRoomTitle = document.getElementById('chatRoomTitle');
     if (chatRoomTitle) {
@@ -588,12 +570,12 @@ async function startChat(chat) {
     
     if (window.socket) {
         // Сообщаем серверу наш userId
-        window.socket.emit('set_user_id', vkUser?.id || 'anonymous');
+        window.socket.emit('set_user_id', window.vkUser?.id || 'anonymous');
         
         // Присоединяемся к чату
         window.socket.emit('join_chat', { 
             chatId: chat.id, 
-            userId: vkUser?.id || 'anonymous' 
+            userId: window.vkUser?.id || 'anonymous' 
         });
     }
     
@@ -631,7 +613,7 @@ async function loadMessages(chatId) {
         
     } catch (error) {
         console.error('❌ Ошибка загрузки сообщений:', error);
-        // Не показываем уведомление, т.к. сообщения могут прийти через socket
+        // Не показываем уведомление, т.к. сообщения могут приойти через socket
     }
 }
 
@@ -669,7 +651,7 @@ function addMessageToChat(message) {
     }
     
     const messageElement = document.createElement('div');
-    const isMyMessage = message.user_id === (vkUser?.id || 'anonymous');
+    const isMyMessage = message.user_id === (window.vkUser?.id || 'anonymous');
     messageElement.className = 'message ' + (isMyMessage ? 'message-my' : 'message-their');
     
     const messageContent = `
@@ -694,7 +676,7 @@ async function sendMessage() {
     
     const text = input.value.trim();
     
-    if (!text || !currentChat) {
+    if (!text || !window.currentChat) {
         return;
     }
 
@@ -705,8 +687,8 @@ async function sendMessage() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                chat_id: currentChat.id,
-                user_id: vkUser?.id || 'anonymous',
+                chat_id: window.currentChat.id,
+                user_id: window.vkUser?.id || 'anonymous',
                 message: text
             })
         });
@@ -719,8 +701,8 @@ async function sendMessage() {
             
             if (window.socket) {
                 window.socket.emit('typing_stop', { 
-                    chatId: currentChat.id, 
-                    userId: vkUser?.id 
+                    chatId: window.currentChat.id, 
+                    userId: window.vkUser?.id 
                 });
             }
         } else {
@@ -790,11 +772,11 @@ function goToChats(chatId) {
 function createChatWithParams(params) {
     console.log('🔄 Создание чата с параметрами:', params);
     
-    if (currentChat && window.socket) {
-        window.socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
+    if (window.currentChat && window.socket) {
+        window.socket.emit('leave_chat', { chatId: window.currentChat.id, userId: window.vkUser?.id });
     }
     
-    currentChat = null;
+    window.currentChat = null;
     
     const messagesContainer = document.getElementById('messagesContainer');
     if (messagesContainer) {
@@ -807,7 +789,7 @@ function createChatWithParams(params) {
     }
     
     const chatData = {
-        user_id: vkUser?.id || 'anonymous',
+        user_id: window.vkUser?.id || 'anonymous',
         user_gender: params.myGender,
         user_age: params.myAge,
         partner_gender: params.partnerGender,
@@ -844,7 +826,7 @@ function createChatWithParams(params) {
             theme: params.theme,
             participants_count: 1,
             timestamp: Date.now(),
-            userId: vkUser?.id || 'anonymous'
+            userId: window.vkUser?.id || 'anonymous'
         };
         
         allChats.unshift(newChat);
@@ -879,8 +861,8 @@ function showScreen(screenId) {
     updateMenuActiveState(screenId);
     toggleBottomMenu(screenId);
     
-    if (screenId !== 'chatRoomScreen' && currentChat && window.socket) {
-        window.socket.emit('leave_chat', { chatId: currentChat.id, userId: vkUser?.id });
+    if (screenId !== 'chatRoomScreen' && window.currentChat && window.socket) {
+        window.socket.emit('leave_chat', { chatId: window.currentChat.id, userId: window.vkUser?.id });
     }
 }
 
@@ -1092,10 +1074,10 @@ function support() {
 }
 
 function leaveChat() {
-    if (currentChat && window.socket) {
+    if (window.currentChat && window.socket) {
         window.socket.emit('leave_chat', { 
-            chatId: currentChat.id, 
-            userId: vkUser?.id 
+            chatId: window.currentChat.id, 
+            userId: window.vkUser?.id 
         });
     }
     showScreen('chatsScreen');
