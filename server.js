@@ -34,7 +34,6 @@ let activeChats = new Map();      // Чаты с 1 участником (ожи�
 let activeConnections = new Map(); // Активные чаты с 2 участниками
 let chatMessages = new Map();     // Сообщения всех чатов
 let userSockets = new Map();      // Привязка userId к socketId
-let userBlocks = new Map();       // Блокировки пользователей
 
 // API маршруты
 app.post('/api/chats', (req, res) => {
@@ -128,7 +127,7 @@ app.post('/api/messages', (req, res) => {
   messages.push(messageObj);
   chatMessages.set(chat_id, messages);
   
-  // Отправляем сообщение всем участников чата
+  // Отправляем сообщение всем участникам чата
   io.to(chat_id).emit('new_message', messageObj);
   
   res.json(messageObj);
@@ -146,35 +145,6 @@ app.get('/api/messages', (req, res) => {
   res.json(messages);
 });
 
-// API для работы с блокировками
-app.post('/api/block-user', (req, res) => {
-  try {
-    const { userId, targetUserId } = req.body;
-    
-    if (!userBlocks.has(userId)) {
-      userBlocks.set(userId, new Set());
-    }
-    
-    userBlocks.get(userId).add(targetUserId);
-    
-    console.log(`🚫 User ${userId} blocked user ${targetUserId}`);
-    
-    res.json({ success: true, message: 'User blocked' });
-  } catch (error) {
-    console.error('Block user error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// API для проверки блокировок
-app.get('/api/check-blocked', (req, res) => {
-  const { userId, targetUserId } = req.query;
-  
-  const isBlocked = userBlocks.has(userId) && userBlocks.get(userId).has(targetUserId);
-  
-  res.json({ blocked: isBlocked });
-});
-
 // Socket.io обработчики
 io.on('connection', (socket) => {
   console.log('🔗 User connected:', socket.id);
@@ -186,42 +156,11 @@ io.on('connection', (socket) => {
     console.log(`📝 User ${userId} associated with socket ${socket.id}`);
   });
   
-  // Обработчик блокировки пользователя
-  socket.on('block_user', (data) => {
-    const { userId, targetUserId } = data;
-    
-    if (!userBlocks.has(userId)) {
-      userBlocks.set(userId, new Set());
-    }
-    
-    userBlocks.get(userId).add(targetUserId);
-    
-    console.log(`🚫 Socket block: User ${userId} blocked user ${targetUserId}`);
-    
-    // Уведомляем пользователя
-    socket.emit('user_blocked', { 
-      targetUserId,
-      message: 'Пользователь заблокирован'
-    });
-  });
-  
-  // Функция проверки блокировок
-  function isBlocked(userId, targetUserId) {
-    return userBlocks.has(userId) && userBlocks.get(userId).has(targetUserId);
-  }
-  
   // Присоединение к чату
   socket.on('join_chat', (data) => {
     const { chatId, userId } = data;
     
     console.log(`👥 Попытка присоединения: user ${userId} к чату ${chatId}`);
-    
-    // Проверяем блокировки
-    const targetChat = activeChats.get(chatId);
-    if (targetChat && isBlocked(targetChat.user_id, userId)) {
-      socket.emit('error', { message: 'Вы заблокированы создателем чата' });
-      return;
-    }
     
     // Сохраняем userId для этого сокета
     userSockets.set(userId, socket.id);
@@ -264,16 +203,16 @@ io.on('connection', (socket) => {
         return;
     }
     
-    const chatData = activeChats.get(chatId);
+    const chat = activeChats.get(chatId);
     
     // Проверяем можно ли присоединиться
-    if (chatData.participants_count !== 1) {
+    if (chat.participants_count !== 1) {
         socket.emit('error', { message: 'Chat is already full' });
         return;
     }
     
     // Если создатель присоединяется к своему чату
-    if (chatData.user_id === userId) {
+    if (chat.user_id === userId) {
         console.log(`👑 Создатель ${userId} присоединяется к своему чату ${chatId}`);
         socket.join(chatId);
         
@@ -293,26 +232,26 @@ io.on('connection', (socket) => {
     console.log(`✅ User ${userId} присоединяется к чату ${chatId} как второй участник`);
     
     // Активируем чат - находим второго участника
-    chatData.participants_count = 2;
+    chat.participants_count = 2;
     
     // Перемещаем чат в активные соединения
     activeChats.delete(chatId);
     activeConnections.set(chatId, {
-        ...chatData,
-        participants: [chatData.user_id, userId],
+        ...chat,
+        participants: [chat.user_id, userId],
         participants_count: 2
     });
     
     // УДАЛЯЕМ чат из общего списка для всех
     io.emit('chat_activated', { chatId });
     
-    console.log(`🎉 Чат ${chatId} активирован! Участники: ${chatData.user_id} и ${userId}`);
+    console.log(`🎉 Чат ${chatId} активирован! Участники: ${chat.user_id} и ${userId}`);
     
     // Присоединяем нового участника к комнате
     socket.join(chatId);
     
     // Находим сокет создателя и присоединяем его тоже
-    const creatorSocketId = userSockets.get(chatData.user_id);
+    const creatorSocketId = userSockets.get(chat.user_id);
     if (creatorSocketId && io.sockets.sockets.get(creatorSocketId)) {
         const creatorSocket = io.sockets.sockets.get(creatorSocketId);
         creatorSocket.join(chatId);
@@ -345,7 +284,7 @@ io.on('connection', (socket) => {
     io.to(chatId).emit('online_users', {
         chatId,
         count: 2,
-        users: [chatData.user_id, userId]
+        users: [chat.user_id, userId]
     });
     
     // Отправляем историю сообщений новому участнику
@@ -411,10 +350,10 @@ io.on('connection', (socket) => {
       
     } else if (activeChat) {
       // Чат ожидает участника (1 участник)
-      const waitingChat = activeChat;
+      const chat = activeChat;
       
       // Если создатель покидает свой чат - полностью удаляем его
-      if (waitingChat.user_id === userId) {
+      if (chat.user_id === userId) {
         activeChats.delete(chatId);
         chatMessages.delete(chatId);
         
@@ -477,18 +416,9 @@ setInterval(() => {
 }, 10 * 60 * 1000); // Каждые 10 минут
 
 // Запуск сервера
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Active chats waiting: ${activeChats.size}`);
   console.log(`🔗 Active connections: ${activeConnections.size}`);
   console.log(`🌐 Access the app at: http://localhost:${PORT}`);
-});
-
-// Обработка ошибок
-process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
 });
