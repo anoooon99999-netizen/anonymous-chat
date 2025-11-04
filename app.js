@@ -30,26 +30,41 @@ let waitingStats = {
 };
 let blockedUsers = new Set(JSON.parse(localStorage.getItem('blockedUsers') || '[]'));
 
-// Инициализация приложения
+// Упрощенная инициализация приложения
 async function initApp() {
     console.log('🚀 Инициализация приложения...');
     
+    // Быстрая попытка инициализации VK
     try {
         if (typeof vkBridge !== 'undefined') {
-            await vkBridge.send('VKWebAppInit');
-            isVK = true;
-            const userInfo = await vkBridge.send('VKWebAppGetUserInfo');
-            vkUser = userInfo;
-            updateUserInterface(userInfo);
-            showNotification('Добро пожаловать, ' + userInfo.first_name + '!');
-            // Показываем VK уведомление
-            await showVKNotification('Добро пожаловать в анонимный чат!');
-        } else {
-            throw new Error('VK Bridge not available');
+            console.log('🔗 VK Bridge обнаружен, инициализируем...');
+            
+            // Быстрая инициализация с таймаутом
+            try {
+                await Promise.race([
+                    vkBridge.send('VKWebAppInit'),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+                ]);
+                console.log('✅ VK Bridge инициализирован');
+                
+                // Получаем информацию о пользователе
+                const userInfo = await vkBridge.send('VKWebAppGetUserInfo');
+                vkUser = userInfo;
+                updateUserInterface(userInfo);
+                isVK = true;
+                showNotification('Добро пожаловать, ' + userInfo.first_name + '!');
+                
+            } catch (vkError) {
+                console.log('❌ VK инициализация failed:', vkError.message);
+                // Продолжаем работу без VK
+            }
         }
     } catch (error) {
-        console.log('Приложение запущено вне VK:', error.message);
-        isVK = false;
+        console.log('VK режим недоступен:', error.message);
+    }
+    
+    // Всегда продолжаем работу, даже если VK не инициализировался
+    if (!vkUser) {
         vkUser = { 
             id: 'user_' + Math.random().toString(36).substr(2, 9),
             first_name: 'Аноним',
@@ -57,9 +72,9 @@ async function initApp() {
             sex: Math.random() > 0.5 ? 2 : 1
         };
         updateUserInterface(vkUser);
-        showNotification('Анонимный режим - можно создавать чаты');
     }
-
+    
+    // Запускаем основную функциональность
     initSocket();
     await loadAndRenderChats();
     loadUserStats();
@@ -67,6 +82,7 @@ async function initApp() {
     setupEventListeners();
     
     console.log('✅ Приложение инициализировано');
+    window.dispatchEvent(new Event('appReady'));
 }
 
 function updateUserInterface(userInfo) {
@@ -79,7 +95,7 @@ function updateUserInterface(userInfo) {
         userNameElement.textContent = userInfo.first_name + (userInfo.last_name ? ' ' + userInfo.last_name : '');
     }
     
-    if (userInfoElement) {
+    if (userInfoElement && isVK) {
         userInfoElement.style.display = 'flex';
     }
     
@@ -116,7 +132,7 @@ async function addToFriends() {
         if (typeof vkBridge !== 'undefined' && isVK) {
             // Получаем access_token через VK Bridge
             const authResult = await vkBridge.send('VKWebAppGetAuthToken', {
-                app_id: window.vkAppId || 1234567, // Замените на ваш app_id
+                app_id: 1234567, // Замените на ваш app_id
                 scope: 'friends'
             });
             
