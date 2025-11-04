@@ -18,6 +18,179 @@ let onlineUsers = new Set();
 let lastChatParams = null;
 let shownModals = new Set();
 
+// Принудительная загрузка Socket.io если не загружен
+function loadSocketIO() {
+    return new Promise((resolve) => {
+        if (typeof io !== 'undefined') {
+            console.log('✅ Socket.io уже загружен');
+            resolve();
+            return;
+        }
+
+        console.log('🔄 Загружаем Socket.io...');
+        const script = document.createElement('script');
+        script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+        script.onload = () => {
+            console.log('✅ Socket.io загружен');
+            resolve();
+        };
+        script.onerror = () => {
+            console.error('❌ Ошибка загрузки Socket.io');
+            resolve(); // Продолжаем без socket.io
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// Инициализация Socket.io подключения
+function initSocketConnection() {
+    try {
+        if (typeof io === 'undefined') {
+            console.error('❌ Socket.io не доступен');
+            return;
+        }
+
+        console.log('🔌 Инициализация Socket.io подключения...');
+        window.socket = io(SOCKET_URL, {
+            transports: ['websocket', 'polling'],
+            timeout: 10000
+        });
+        
+        window.socket.on('connect', () => {
+            console.log('✅ Подключен к серверу чатов');
+            // Сообщаем серверу наш userId при подключении
+            if (window.vkUser?.id) {
+                window.socket.emit('set_user_id', window.vkUser.id);
+            }
+        });
+        
+        window.socket.on('disconnect', (reason) => {
+            console.log('❌ Отключен от сервера:', reason);
+        });
+        
+        window.socket.on('connect_error', (error) => {
+            console.error('❌ Ошибка подключения Socket.io:', error);
+        });
+
+        // Настраиваем обработчики событий
+        setupSocketHandlers();
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации Socket.io:', error);
+    }
+}
+
+// Настройка обработчиков Socket.io
+function setupSocketHandlers() {
+    if (!window.socket) return;
+
+    // Получение истории сообщений от сервера
+    window.socket.on('chat_messages', (data) => {
+        console.log('📨 Получена история сообщений:', data.messages.length);
+        if (window.currentChat && data.chatId === window.currentChat.id) {
+            renderMessages(data.messages);
+        }
+    });
+    
+    // Слушаем создание новых чатов от всех пользователей
+    window.socket.on('new_chat_created', (chat) => {
+        console.log('📨 Получен новый чат от другого пользователя:', chat);
+        
+        const isMyChat = chat.user_id === window.vkUser?.id;
+        const existingChatIndex = allChats.findIndex(c => c.id === chat.id);
+        
+        if (existingChatIndex === -1) {
+            addChatToList(chat);
+            
+            if (!isMyChat) {
+                showNotification('📢 Создан новый чат в разделе "' + chat.theme + '"');
+            }
+        }
+    });
+    
+    // Слушаем когда чат активируется (найден второй участник)
+    window.socket.on('chat_activated', (data) => {
+        console.log('🎉 Чат активирован:', data.chatId);
+        removeChatFromList(data.chatId);
+        
+        if (window.currentChat && data.chatId === window.currentChat.id) {
+            showNotification(data.message || '💬 Найден собеседник! Чат активирован');
+            onlineUsers = new Set([window.vkUser?.id, 'partner']);
+            updateOnlineCount();
+        }
+    });
+    
+    // Слушаем когда чат полностью удаляется с сервера
+    window.socket.on('chat_removed', (data) => {
+        console.log('🗑️ Чат полностью удален с сервера:', data.chatId);
+        removeChatFromList(data.chatId);
+    });
+    
+    window.socket.on('user_joined', (data) => {
+        if (window.currentChat && data.chatId === window.currentChat.id) {
+            onlineUsers.add(data.userId);
+            updateOnlineCount();
+            showNotification('👤 Собеседник присоединился к чату');
+        }
+    });
+    
+    window.socket.on('user_left', (data) => {
+        if (window.currentChat && data.chatId === window.currentChat.id) {
+            onlineUsers.delete(data.userId);
+            updateOnlineCount();
+            
+            const isCreator = window.currentChat.userId === window.vkUser?.id;
+            const isSelfLeave = data.userId === window.vkUser?.id;
+            
+            console.log('🚪 Пользователь вышел из чата:', {
+                chatId: data.chatId,
+                userId: data.userId,
+                isCreator: isCreator,
+                isSelfLeave: isSelfLeave
+            });
+            
+            if (!isSelfLeave && isCreator) {
+                showPartnerLeftModal(data.chatId);
+            }
+        }
+    });
+    
+    window.socket.on('new_message', (message) => {
+        if (window.currentChat && message.chat_id === window.currentChat.id) {
+            addMessageToChat(message);
+        }
+    });
+    
+    window.socket.on('typing_start', (data) => {
+        if (window.currentChat && data.chatId === window.currentChat.id) {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.style.display = 'inline';
+            }
+        }
+    });
+    
+    window.socket.on('typing_stop', (data) => {
+        if (window.currentChat && data.chatId === window.currentChat.id) {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.style.display = 'none';
+            }
+        }
+    });
+    
+    window.socket.on('online_users', (data) => {
+        if (window.currentChat && data.chatId === window.currentChat.id) {
+            onlineUsers = new Set(data.users);
+            updateOnlineCount();
+        }
+    });
+    
+    window.socket.on('error', (data) => {
+        showNotification('❌ ' + data.message);
+    });
+}
+
 // Инициализация приложения
 async function initApp() {
     console.log('🚀 Инициализация приложения...');
@@ -45,7 +218,10 @@ async function initApp() {
         showNotification('Анонимный режим - можно создавать чаты');
     }
 
-    initSocket();
+    // Загружаем и инициализируем Socket.io
+    await loadSocketIO();
+    initSocketConnection();
+    
     await loadAndRenderChats();
     loadUserStats();
     updateProfileStats();
@@ -92,136 +268,6 @@ function switchChatTab(theme, element) {
     }
     
     renderChatsList();
-}
-
-function initSocket() {
-    try {
-        if (!window.socket) {
-            console.error('Socket.io не инициализирован');
-            return;
-        }
-        
-        window.socket.on('connect', () => {
-            console.log('✅ Connected to server');
-            // Сообщаем серверу наш userId при подключении
-            if (window.vkUser?.id) {
-                window.socket.emit('set_user_id', window.vkUser.id);
-            }
-            if (window.currentChat) {
-                window.socket.emit('join_chat', { chatId: window.currentChat.id, userId: window.vkUser?.id });
-            }
-        });
-        
-        // Получение истории сообщений от сервера
-        window.socket.on('chat_messages', (data) => {
-            console.log('📨 Получена история сообщений:', data.messages.length);
-            if (window.currentChat && data.chatId === window.currentChat.id) {
-                renderMessages(data.messages);
-            }
-        });
-        
-        // Слушаем создание новых чатов от всех пользователей
-        window.socket.on('new_chat_created', (chat) => {
-            console.log('📨 Получен новый чат от другого пользователя:', chat);
-            
-            const isMyChat = chat.user_id === window.vkUser?.id;
-            const existingChatIndex = allChats.findIndex(c => c.id === chat.id);
-            
-            if (existingChatIndex === -1) {
-                addChatToList(chat);
-                
-                if (!isMyChat) {
-                    showNotification('📢 Создан новый чат в разделе "' + chat.theme + '"');
-                }
-            }
-        });
-        
-        // Слушаем когда чат активируется (найден второй участник)
-        window.socket.on('chat_activated', (data) => {
-            console.log('🎉 Чат активирован:', data.chatId);
-            removeChatFromList(data.chatId);
-            
-            if (window.currentChat && data.chatId === window.currentChat.id) {
-                showNotification(data.message || '💬 Найден собеседник! Чат активирован');
-                // Обновляем онлайн счетчик
-                onlineUsers = new Set([window.vkUser?.id, 'partner']);
-                updateOnlineCount();
-            }
-        });
-        
-        // Слушаем когда чат полностью удаляется с сервера
-        window.socket.on('chat_removed', (data) => {
-            console.log('🗑️ Чат полностью удален с сервера:', data.chatId);
-            removeChatFromList(data.chatId);
-        });
-        
-        window.socket.on('user_joined', (data) => {
-            if (window.currentChat && data.chatId === window.currentChat.id) {
-                onlineUsers.add(data.userId);
-                updateOnlineCount();
-                showNotification('👤 Собеседник присоединился к чату');
-            }
-        });
-        
-        window.socket.on('user_left', (data) => {
-            if (window.currentChat && data.chatId === window.currentChat.id) {
-                onlineUsers.delete(data.userId);
-                updateOnlineCount();
-                
-                const isCreator = window.currentChat.userId === window.vkUser?.id;
-                const isSelfLeave = data.userId === window.vkUser?.id;
-                
-                console.log('🚪 Пользователь вышел из чата:', {
-                    chatId: data.chatId,
-                    userId: data.userId,
-                    isCreator: isCreator,
-                    isSelfLeave: isSelfLeave
-                });
-                
-                if (!isSelfLeave && isCreator) {
-                    showPartnerLeftModal(data.chatId);
-                }
-            }
-        });
-        
-        window.socket.on('new_message', (message) => {
-            if (window.currentChat && message.chat_id === window.currentChat.id) {
-                addMessageToChat(message);
-            }
-        });
-        
-        window.socket.on('typing_start', (data) => {
-            if (window.currentChat && data.chatId === window.currentChat.id) {
-                const typingIndicator = document.getElementById('typingIndicator');
-                if (typingIndicator) {
-                    typingIndicator.style.display = 'inline';
-                }
-            }
-        });
-        
-        window.socket.on('typing_stop', (data) => {
-            if (window.currentChat && data.chatId === window.currentChat.id) {
-                const typingIndicator = document.getElementById('typingIndicator');
-                if (typingIndicator) {
-                    typingIndicator.style.display = 'none';
-                }
-            }
-        });
-        
-        window.socket.on('online_users', (data) => {
-            if (window.currentChat && data.chatId === window.currentChat.id) {
-                onlineUsers = new Set(data.users);
-                updateOnlineCount();
-            }
-        });
-        
-        window.socket.on('error', (data) => {
-            showNotification('❌ ' + data.message);
-        });
-        
-    } catch (error) {
-        console.error('Socket error:', error);
-    }
 }
 
 // Функции для работы с чатами
@@ -613,7 +659,7 @@ async function loadMessages(chatId) {
         
     } catch (error) {
         console.error('❌ Ошибка загрузки сообщений:', error);
-        // Не показываем уведомление, т.к. сообщения могут приойти через socket
+        // Не показываем уведомление, т.к. сообщения могут прийти через socket
     }
 }
 
