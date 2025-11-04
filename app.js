@@ -5,6 +5,18 @@ const SOCKET_URL = window.location.origin;
 // Инициализация Socket.io
 const socket = io(SOCKET_URL);
 window.socket = socket;
+// ✅ ДОБАВЬТЕ ЭТОТ КОД ЗДЕСЬ
+// Инициализация VK
+if (typeof vkBridge !== 'undefined') {
+  vkBridge.send('VKWebAppInit')
+    .then(() => {
+      console.log('✅ VK Mini App инициализировано!');
+      isVK = true; // Устанавливаем флаг что мы в VK
+    })
+    .catch(error => {
+      console.error('VK Init error:', error);
+    });
+}
 
 // Глобальные переменные
 let allChats = [];
