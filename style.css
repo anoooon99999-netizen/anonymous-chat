@@ -1,17 +1,169 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
+/* ===== СИСТЕМА ТЕМ ===== */
 :root {
-    --primary: #6366F1; --primary-light: #818CF8; --primary-dark: #4F46E5;
-    --background: #0F0F23; --surface: #1A1B2E; --text: #FFFFFF;
-    --text-secondary: #94A3B8; --border: #2D3748; --accent: #F59E0B;
-    --success: #10B981; --warning: #F59E0B; --error: #EF4444;
+    /* Общие переменные */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
+    
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.15);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.2);
+    
+    --transition: all 0.3s ease;
+}
+
+/* ===== СВЕТЛАЯ ТЕМА ВК ===== */
+[data-theme="light"] {
+    --primary: #5181B8;
+    --primary-light: #6B9AD0;
+    --primary-dark: #3F6B9C;
+    --background: #FFFFFF;
+    --surface: #F5F5F5;
+    --text: #000000;
+    --text-secondary: #656565;
+    --border: #E1E3E6;
+    --accent: #FF9E00;
+    --success: #4BB34B;
+    --warning: #FF9E00;
+    --error: #E64646;
+    --gradient: linear-gradient(135deg, #5181B8, #6B9AD0);
+    --card-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+    --glass-effect: rgba(245, 245, 245, 0.8);
+    --bg-secondary: #E1E3E6;
+    
+    --success-bg: #e8f5e8;
+    --warning-bg: #fff3cd;
+    --error-bg: #f8d7da;
+}
+
+/* ===== ТЕМНАЯ ТЕМА ВК ===== */
+[data-theme="dark"] {
+    --primary: #5181B8;
+    --primary-light: #6B9AD0;
+    --primary-dark: #3F6B9C;
+    --background: #191919;
+    --surface: #222222;
+    --text: #FFFFFF;
+    --text-secondary: #A0A0A0;
+    --border: #333333;
+    --accent: #FF9E00;
+    --success: #4BB34B;
+    --warning: #FF9E00;
+    --error: #E64646;
+    --gradient: linear-gradient(135deg, #5181B8, #6B9AD0);
+    --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --glass-effect: rgba(34, 34, 34, 0.8);
+    --bg-secondary: #2A2A2A;
+    
+    --success-bg: rgba(75, 179, 75, 0.1);
+    --warning-bg: rgba(255, 158, 0, 0.1);
+    --error-bg: rgba(230, 70, 70, 0.1);
+}
+
+/* ===== КОСМИЧЕСКАЯ ТЕМА ===== */
+[data-theme="space"] {
+    --primary: #6366F1;
+    --primary-light: #818CF8;
+    --primary-dark: #4F46E5;
+    --background: #0F0F23;
+    --surface: #1A1B2E;
+    --text: #FFFFFF;
+    --text-secondary: #94A3B8;
+    --border: #2D3748;
+    --accent: #F59E0B;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --error: #EF4444;
     --gradient: linear-gradient(135deg, #6366F1, #8B5CF6, #EC4899);
     --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     --glass-effect: rgba(255, 255, 255, 0.05);
     --bg-secondary: #2D3748;
+    
+    --success-bg: rgba(16, 185, 129, 0.1);
+    --warning-bg: rgba(245, 158, 11, 0.1);
+    --error-bg: rgba(239, 68, 68, 0.1);
 }
 
-/* ФИКСИРОВАННАЯ ШИРИНА 700px БЕЗ ГРАНИЦ */
+/* ===== ФИОЛЕТОВАЯ ТЕМА ===== */
+[data-theme="purple"] {
+    --primary: #8B5CF6;
+    --primary-light: #A78BFA;
+    --primary-dark: #7C3AED;
+    --background: #1E1B2E;
+    --surface: #2A2640;
+    --text: #FFFFFF;
+    --text-secondary: #C4B5FD;
+    --border: #3E3B4E;
+    --accent: #F59E0B;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --error: #EF4444;
+    --gradient: linear-gradient(135deg, #8B5CF6, #C084FC, #F472B6);
+    --card-shadow: 0 8px 32px rgba(139, 92, 246, 0.2);
+    --glass-effect: rgba(139, 92, 246, 0.1);
+    --bg-secondary: #3E3B4E;
+    
+    --success-bg: rgba(16, 185, 129, 0.1);
+    --warning-bg: rgba(245, 158, 11, 0.1);
+    --error-bg: rgba(239, 68, 68, 0.1);
+}
+
+/* Автоматическое определение системной темы */
+@media (prefers-color-scheme: light) {
+    [data-theme="system"] {
+        --primary: #5181B8;
+        --primary-light: #6B9AD0;
+        --primary-dark: #3F6B9C;
+        --background: #FFFFFF;
+        --surface: #F5F5F5;
+        --text: #000000;
+        --text-secondary: #656565;
+        --border: #E1E3E6;
+        --accent: #FF9E00;
+        --success: #4BB34B;
+        --warning: #FF9E00;
+        --error: #E64646;
+        --gradient: linear-gradient(135deg, #5181B8, #6B9AD0);
+        --card-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+        --glass-effect: rgba(245, 245, 245, 0.8);
+        --bg-secondary: #E1E3E6;
+        
+        --success-bg: #e8f5e8;
+        --warning-bg: #fff3cd;
+        --error-bg: #f8d7da;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    [data-theme="system"] {
+        --primary: #5181B8;
+        --primary-light: #6B9AD0;
+        --primary-dark: #3F6B9C;
+        --background: #191919;
+        --surface: #222222;
+        --text: #FFFFFF;
+        --text-secondary: #A0A0A0;
+        --border: #333333;
+        --accent: #FF9E00;
+        --success: #4BB34B;
+        --warning: #FF9E00;
+        --error: #E64646;
+        --gradient: linear-gradient(135deg, #5181B8, #6B9AD0);
+        --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        --glass-effect: rgba(34, 34, 34, 0.8);
+        --bg-secondary: #2A2A2A;
+        
+        --success-bg: rgba(75, 179, 75, 0.1);
+        --warning-bg: rgba(255, 158, 0, 0.1);
+        --error-bg: rgba(230, 70, 70, 0.1);
+    }
+}
+
+/* Основные стили */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
 body { 
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
     background: var(--background); 
@@ -22,6 +174,7 @@ body {
     margin: 0 auto;
     position: relative;
     overflow-x: hidden;
+    transition: var(--transition);
 }
 
 /* Контейнеры */
@@ -76,7 +229,7 @@ body {
     margin-bottom: 16px;
     backdrop-filter: blur(20px);
     box-shadow: var(--card-shadow);
-    transition: all 0.3s ease;
+    transition: var(--transition);
     position: relative;
     overflow: hidden;
 }
@@ -115,7 +268,7 @@ body {
     cursor: pointer; 
     font-weight: 600; 
     font-size: 14px;
-    transition: all 0.3s ease;
+    transition: var(--transition);
     color: var(--text-secondary);
 }
 
@@ -147,20 +300,20 @@ body {
     font-weight: 600; 
 }
 
-/* НИЖНЕЕ МЕНЮ С ЗАКРУГЛЕННЫМИ КРАЯМИ И ПРАВИЛЬНЫМИ ОТСТУПАМИ */
+/* НИЖНЕЕ МЕНЮ */
 .bottom-menu {
     position: fixed;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: calc(100% - 40px); /* Ширина как у контента */
-    max-width: 660px; /* 700px - 40px отступов */
+    width: calc(100% - 40px);
+    max-width: 660px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-bottom: none;
-    border-radius: 20px 20px 0 0; /* Закругленные верхние углы */
+    border-radius: 20px 20px 0 0;
     display: flex !important;
-    padding: 12px 20px; /* Такие же отступы как у контейнера */
+    padding: 12px 20px;
     z-index: 1000;
     justify-content: space-around;
     align-items: center;
@@ -174,7 +327,7 @@ body {
     align-items: center;
     padding: 8px 16px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: var(--transition);
     border-radius: 12px;
     opacity: 0.7;
     min-width: 60px;
@@ -309,7 +462,7 @@ body {
     color: var(--text); 
     padding: 8px 12px;
     border-radius: 12px;
-    transition: all 0.2s ease;
+    transition: var(--transition);
 }
 
 .close-button:hover {
@@ -344,7 +497,7 @@ body {
     cursor: pointer; 
     font-size: 15px; 
     font-weight: 600; 
-    transition: all 0.2s ease; 
+    transition: var(--transition); 
     color: var(--text); 
 }
 
@@ -379,7 +532,7 @@ body {
     cursor: pointer; 
     margin-top: 16px; 
     box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
-    transition: all 0.3s ease;
+    transition: var(--transition);
 }
 
 .create-button:active {
@@ -447,7 +600,7 @@ body {
     display: flex; 
     flex-direction: column;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: var(--transition);
 }
 
 .setting-item:active {
@@ -489,7 +642,7 @@ body {
     color: var(--primary); 
     padding: 8px;
     border-radius: 12px;
-    transition: all 0.2s ease;
+    transition: var(--transition);
 }
 
 .back-button:hover {
@@ -624,7 +777,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
+    transition: var(--transition);
     font-size: 18px;
     font-weight: bold;
     box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
@@ -689,7 +842,7 @@ body {
     }
     
     .bottom-menu {
-        width: calc(100% - 32px); /* 16px слева + 16px справа */
+        width: calc(100% - 32px);
         max-width: none;
         padding: 12px 16px;
         border-radius: 16px 16px 0 0;
@@ -784,7 +937,7 @@ body {
     font-weight: 700;
     cursor: pointer;
     backdrop-filter: blur(10px);
-    transition: all 0.3s ease;
+    transition: var(--transition);
 }
 
 .notification-button:active {
@@ -814,7 +967,7 @@ body {
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: var(--transition);
     white-space: nowrap;
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
@@ -877,7 +1030,7 @@ body {
     border: 3px solid var(--surface);
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
     pointer-events: all;
-    transition: all 0.2s ease;
+    transition: var(--transition);
 }
 
 .slider::-moz-range-thumb {
@@ -988,7 +1141,7 @@ body {
     font-size: 16px;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: var(--transition);
     box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
 }
 
@@ -1006,12 +1159,132 @@ body {
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: var(--transition);
 }
 
 .modal-secondary-button:active {
     background: var(--border);
     transform: translateY(2px);
+}
+
+/* Стили для выбора темы */
+.theme-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.theme-option {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: var(--transition);
+    background: var(--background);
+    position: relative;
+}
+
+.theme-option:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.theme-option.active {
+    border-color: var(--primary);
+    background: var(--surface);
+}
+
+.theme-preview {
+    width: 60px;
+    height: 40px;
+    border-radius: 8px;
+    margin-right: 16px;
+    border: 2px solid var(--border);
+    overflow: hidden;
+}
+
+.system-theme {
+    display: flex;
+}
+
+.theme-half {
+    flex: 1;
+    height: 100%;
+}
+
+.theme-half.light {
+    background: #FFFFFF;
+}
+
+.theme-half.dark {
+    background: #191919;
+}
+
+.light-theme {
+    background: linear-gradient(135deg, #FFFFFF, #F5F5F5);
+}
+
+.dark-theme {
+    background: linear-gradient(135deg, #191919, #222222);
+}
+
+.space-theme {
+    background: linear-gradient(135deg, #0F0F23, #1A1B2E);
+    position: relative;
+}
+
+.space-theme::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(2px 2px at 20px 10px, #6366F1, transparent),
+        radial-gradient(2px 2px at 40px 20px, #8B5CF6, transparent),
+        radial-gradient(1px 1px at 60px 30px, #EC4899, transparent);
+}
+
+.purple-theme {
+    background: linear-gradient(135deg, #1E1B2E, #2A2640);
+}
+
+.theme-info {
+    flex: 1;
+}
+
+.theme-name {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.theme-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.theme-check {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--gradient);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    opacity: 0;
+    transition: var(--transition);
+}
+
+.theme-option.active .theme-check {
+    opacity: 1;
 }
 
 /* Адаптивность для модальных окон */
@@ -1030,6 +1303,16 @@ body {
     .modal-secondary-button {
         padding: 16px;
         font-size: 15px;
+    }
+    
+    .theme-option {
+        padding: 12px;
+    }
+    
+    .theme-preview {
+        width: 50px;
+        height: 35px;
+        margin-right: 12px;
     }
 }
 
