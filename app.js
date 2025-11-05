@@ -18,6 +18,99 @@ let onlineUsers = new Set();
 let lastChatParams = null;
 let shownModals = new Set();
 
+// ===== СИСТЕМА ТЕМ =====
+let currentAppTheme = 'system';
+
+function initThemeSystem() {
+    // Загружаем сохраненную тему
+    const savedTheme = localStorage.getItem('app_theme');
+    if (savedTheme) {
+        currentAppTheme = savedTheme;
+    } else {
+        // Автоопределение системной темы
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        currentAppTheme = 'system';
+    }
+    
+    applyTheme(currentAppTheme);
+    updateThemeText();
+}
+
+function applyTheme(theme) {
+    currentAppTheme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('app_theme', theme);
+    updateThemeText();
+}
+
+function updateThemeText() {
+    const themeText = document.getElementById('currentThemeText');
+    if (themeText) {
+        const themeNames = {
+            'system': 'Системная',
+            'light': 'Светлая',
+            'dark': 'Темная', 
+            'space': 'Космическая',
+            'purple': 'Фиолетовая'
+        };
+        themeText.textContent = themeNames[currentAppTheme] || 'Системная';
+    }
+}
+
+function openThemeSettings() {
+    const modal = document.getElementById('themeModal');
+    if (modal) {
+        modal.style.display = 'block';
+        updateThemeSelection();
+    }
+}
+
+function closeThemeModal() {
+    const modal = document.getElementById('themeModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function selectTheme(theme) {
+    applyTheme(theme);
+    updateThemeSelection();
+    showNotification(`✅ Тема изменена на "${getThemeName(theme)}"`);
+}
+
+function getThemeName(theme) {
+    const names = {
+        'system': 'Системная',
+        'light': 'Светлая',
+        'dark': 'Темная',
+        'space': 'Космическая', 
+        'purple': 'Фиолетовая'
+    };
+    return names[theme] || theme;
+}
+
+function updateThemeSelection() {
+    // Убираем активный класс у всех опций
+    document.querySelectorAll('.theme-option').forEach(option => {
+        option.classList.remove('active');
+    });
+    
+    // Показываем галочку только у выбранной темы
+    document.querySelectorAll('.theme-check').forEach(check => {
+        check.style.opacity = '0';
+    });
+    
+    // Активируем выбранную тему
+    const selectedOption = document.querySelector(`.theme-option[data-theme="${currentAppTheme}"]`);
+    if (selectedOption) {
+        selectedOption.classList.add('active');
+        const check = selectedOption.querySelector('.theme-check');
+        if (check) {
+            check.style.opacity = '1';
+        }
+    }
+}
+
 // Принудительная загрузка Socket.io если не загружен
 function loadSocketIO() {
     return new Promise((resolve) => {
@@ -218,6 +311,9 @@ async function initApp() {
         showNotification('Анонимный режим - можно создавать чаты');
     }
 
+    // Инициализация системы тем
+    initThemeSystem();
+    
     // Загружаем и инициализируем Socket.io
     await loadSocketIO();
     initSocketConnection();
@@ -964,6 +1060,12 @@ function closeAllModals() {
         createChatModal.style.display = 'none';
     }
     
+    // Скрываем модальное окно выбора темы
+    const themeModal = document.getElementById('themeModal');
+    if (themeModal) {
+        themeModal.style.display = 'none';
+    }
+    
     shownModals.clear();
 }
 
@@ -1179,3 +1281,8 @@ window.support = support;
 window.leaveChat = leaveChat;
 window.addToFriends = addToFriends;
 window.reportUser = reportUser;
+
+// Функции для системы тем
+window.openThemeSettings = openThemeSettings;
+window.closeThemeModal = closeThemeModal;
+window.selectTheme = selectTheme;
