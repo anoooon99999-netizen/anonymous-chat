@@ -950,8 +950,20 @@ function toggleOption(element) {
 }
 
 function closeAllModals() {
-    const modals = document.querySelectorAll('.modal-overlay');
-    modals.forEach(modal => modal.remove());
+    // Закрываем все временные модальные окна (удаляем их)
+    const tempModals = document.querySelectorAll('.modal-overlay');
+    tempModals.forEach(modal => {
+        if (!modal.id) { // Удаляем только окна без ID (временные)
+            modal.remove();
+        }
+    });
+    
+    // Скрываем модальное окно создания чата (но не удаляем)
+    const createChatModal = document.getElementById('createChatModal');
+    if (createChatModal) {
+        createChatModal.style.display = 'none';
+    }
+    
     shownModals.clear();
 }
 
