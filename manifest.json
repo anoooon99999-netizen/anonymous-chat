@@ -4,5 +4,7 @@
     "launch_url": "/index.html",
     "scope": "/", 
     "display": "fullscreen",
-    "orientation": "portrait"
+    "orientation": "portrait",
+    "theme_color": "#5181B8",
+    "background_color": "#FFFFFF"
 }
