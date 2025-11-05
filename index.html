@@ -20,7 +20,7 @@
                     <p>Общайтесь анонимно в реальном времени</p>
                 </div>
                 
-                <div id="appStatus" style="padding: 10px; margin: 10px 0; border-radius: 8px; background: #f0f0f0; text-align: center;">
+                <div id="appStatus" style="padding: 10px; margin: 10px 0; border-radius: 8px; background: var(--bg-secondary); text-align: center;">
                     Загрузка приложения...
                 </div>
                 
@@ -121,6 +121,12 @@
                 </div>
                 
                 <div class="settings-list">
+                    <!-- Переключатель тем -->
+                    <div class="setting-item" onclick="openThemeSettings()">
+                        <div class="setting-title">Тема оформления</div>
+                        <div class="setting-description" id="currentThemeText">Системная</div>
+                    </div>
+                    
                     <div class="setting-item" onclick="openNotificationsSettings()">
                         <div class="setting-title">Уведомления</div>
                         <div class="setting-description">Настройка push-уведомлений</div>
@@ -233,6 +239,66 @@
             </div>
         </div>
 
+        <!-- Модальное окно выбора темы -->
+        <div class="modal-overlay" id="themeModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">Выбор темы</div>
+                    <button class="close-button" onclick="closeThemeModal()">×</button>
+                </div>
+                
+                <div class="theme-options">
+                    <div class="theme-option" data-theme="system" onclick="selectTheme('system')">
+                        <div class="theme-preview system-theme">
+                            <div class="theme-half light"></div>
+                            <div class="theme-half dark"></div>
+                        </div>
+                        <div class="theme-info">
+                            <div class="theme-name">Системная</div>
+                            <div class="theme-description">Автоматическое определение</div>
+                        </div>
+                        <div class="theme-check" id="check-system">✓</div>
+                    </div>
+                    
+                    <div class="theme-option" data-theme="light" onclick="selectTheme('light')">
+                        <div class="theme-preview light-theme"></div>
+                        <div class="theme-info">
+                            <div class="theme-name">Светлая</div>
+                            <div class="theme-description">Как в ВК днем</div>
+                        </div>
+                        <div class="theme-check" id="check-light">✓</div>
+                    </div>
+                    
+                    <div class="theme-option" data-theme="dark" onclick="selectTheme('dark')">
+                        <div class="theme-preview dark-theme"></div>
+                        <div class="theme-info">
+                            <div class="theme-name">Темная</div>
+                            <div class="theme-description">Как в ВК ночью</div>
+                        </div>
+                        <div class="theme-check" id="check-dark">✓</div>
+                    </div>
+                    
+                    <div class="theme-option" data-theme="space" onclick="selectTheme('space')">
+                        <div class="theme-preview space-theme"></div>
+                        <div class="theme-info">
+                            <div class="theme-name">Космическая</div>
+                            <div class="theme-description">Темная с неоновыми акцентами</div>
+                        </div>
+                        <div class="theme-check" id="check-space">✓</div>
+                    </div>
+                    
+                    <div class="theme-option" data-theme="purple" onclick="selectTheme('purple')">
+                        <div class="theme-preview purple-theme"></div>
+                        <div class="theme-info">
+                            <div class="theme-name">Фиолетовая</div>
+                            <div class="theme-description">Градиенты и современный дизайн</div>
+                        </div>
+                        <div class="theme-check" id="check-purple">✓</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Нижнее меню -->
         <div class="bottom-menu">
             <div class="menu-item active" onclick="showScreen('chatsScreen')">
@@ -265,8 +331,8 @@
                 if (typeof vkBridge !== 'undefined') {
                     await vkBridge.send('VKWebAppInit');
                     statusElement.innerHTML = '✅ VK Mini App инициализировано';
-                    statusElement.style.background = '#e8f5e8';
-                    statusElement.style.color = '#2e7d32';
+                    statusElement.style.background = 'var(--success-bg)';
+                    statusElement.style.color = 'var(--success)';
                     
                     // Получаем информацию о пользователе
                     const userInfo = await vkBridge.send('VKWebAppGetUserInfo');
@@ -279,17 +345,20 @@
                     
                 } else {
                     statusElement.innerHTML = '⚠️ Приложение запущено вне VK';
-                    statusElement.style.background = '#fff3cd';
-                    statusElement.style.color = '#856404';
+                    statusElement.style.background = 'var(--warning-bg)';
+                    statusElement.style.color = 'var(--warning)';
                 }
+                
+                // Инициализация тем
+                initThemeSystem();
                 
                 // Инициализация Socket.io
                 initSocket();
                 
             } catch (error) {
                 statusElement.innerHTML = '❌ Ошибка инициализации: ' + error.message;
-                statusElement.style.background = '#f8d7da';
-                statusElement.style.color = '#721c24';
+                statusElement.style.background = 'var(--error-bg)';
+                statusElement.style.color = 'var(--error)';
             }
         }
         
