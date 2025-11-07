@@ -479,10 +479,10 @@ function renderChatsList() {
 
     if (filteredChats.length === 0) {
         container.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                <div style="font-size: 48px; margin-bottom: 16px;">💬</div>
+            <div style="text-align: center; padding: 30px 16px; color: var(--text-secondary);">
+                <div style="font-size: 40px; margin-bottom: 12px;">💬</div>
                 <div>Активных чатов в разделе "${currentTheme}" пока нет</div>
-                <div style="font-size: 14px; margin-top: 8px;">Создайте первый чат!</div>
+                <div style="font-size: 13px; margin-top: 6px;">Создайте первый чат!</div>
             </div>
         `;
         return;
@@ -506,7 +506,7 @@ function renderChatsList() {
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="theme-tag">${chat.theme}</div>
-                <div style="font-size: 12px; color: var(--text-secondary);">
+                <div style="font-size: 11px; color: var(--text-secondary);">
                     ${getTimeAgo(chat.timestamp)}
                 </div>
             </div>
@@ -693,8 +693,8 @@ async function startChat(chat) {
     const messagesContainer = document.getElementById('messagesContainer');
     if (messagesContainer) {
         messagesContainer.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
+            <div style="text-align: center; padding: 30px 16px; color: var(--text-secondary);">
+                <div style="font-size: 40px; margin-bottom: 12px;">💭</div>
                 <div>Загружаем чат...</div>
             </div>
         `;
@@ -757,10 +757,10 @@ function renderMessages(messages) {
     
     if (messages.length === 0) {
         container.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
+            <div style="text-align: center; padding: 30px 16px; color: var(--text-secondary);">
+                <div style="font-size: 40px; margin-bottom: 12px;">💭</div>
                 <div>Пока нет сообщений</div>
-                <div style="font-size: 14px; margin-top: 8px;">Начните общение первым!</div>
+                <div style="font-size: 13px; margin-top: 6px;">Начните общение первым!</div>
             </div>
         `;
         return;
@@ -860,13 +860,13 @@ function showPartnerLeftModal(chatId) {
     modal.className = 'modal-overlay';
     modal.style.display = 'block';
     modal.innerHTML = `
-        <div class="modal-content" style="text-align: center; max-width: 300px;">
+        <div class="modal-content" style="text-align: center; max-width: 280px;">
             <div class="modal-header">
                 <div class="modal-title">👤 Собеседник покинул чат</div>
             </div>
-            <div style="padding: 20px;">
-                <p style="margin-bottom: 20px;">Чат был удален из системы. Что вы хотите сделать?</p>
-                <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+            <div style="padding: 16px;">
+                <p style="margin-bottom: 16px;">Чат был удален из системы. Что вы хотите сделать?</p>
+                <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
                     <button class="action-button" onclick="recreateChat('${chatId}')" style="width: 100%;">
                         🔄 Создать такой же чат
                     </button>
@@ -913,8 +913,8 @@ function createChatWithParams(params) {
     const messagesContainer = document.getElementById('messagesContainer');
     if (messagesContainer) {
         messagesContainer.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
+            <div style="text-align: center; padding: 30px 16px; color: var(--text-secondary);">
+                <div style="font-size: 40px; margin-bottom: 12px;">💭</div>
                 <div>Создаем новый чат...</div>
             </div>
         `;
