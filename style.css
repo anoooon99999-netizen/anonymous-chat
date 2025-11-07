@@ -874,34 +874,6 @@ body {
     }
 }
 
-/* Стили для VK пользователя */
-.vk-user-info {
-    background: var(--gradient);
-    color: white;
-    padding: 20px;
-    border-radius: 20px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    box-shadow: var(--card-shadow);
-}
-
-.vk-avatar {
-    width: 50px;
-    height: 50px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 18px;
-    backdrop-filter: blur(10px);
-    background-size: cover;
-    background-position: center;
-}
-
 /* Уведомления */
 .notification-section {
     background: var(--gradient);
