@@ -21,17 +21,17 @@
                 <div class="notification-section">
                     <div class="notification-title">🎉 Уникальная фишка!</div>
                     <div class="notification-text">Играйте в игры прямо во время общения с собеседником</div>
-                    <button class="notification-button" onclick="enableNotifications()">Включить уведомления</button>
+                    <button class="notification-button" id="enableNotificationsBtn">Включить уведомления</button>
                 </div>
                 
                 <!-- Вкладки чатов -->
                 <div class="chat-tabs">
-                    <div class="chat-tab active" onclick="switchChatTab('Общение', this)">💬 Общение</div>
-                    <div class="chat-tab" onclick="switchChatTab('Флирт', this)">😊 Флирт</div>
-                    <div class="chat-tab" onclick="switchChatTab('Игры', this)">🎮 Игры</div>
+                    <div class="chat-tab active" data-tab="Общение">💬 Общение</div>
+                    <div class="chat-tab" data-tab="Флирт">😊 Флирт</div>
+                    <div class="chat-tab" data-tab="Игры">🎮 Игры</div>
                 </div>
                 
-                <div class="create-chat-card" onclick="openCreateChatModal()">
+                <div class="create-chat-card" id="createChatBtn">
                     <div class="create-chat-icon">+</div>
                     <div class="create-chat-text" id="createChatText">Создать чат для Общения</div>
                 </div>
@@ -101,26 +101,34 @@
                 </div>
                 
                 <div class="settings-list">
-                    <div class="setting-item" onclick="openThemeSettings()">
+                    <div class="setting-item" id="themeSettingsBtn">
                         <div class="setting-title">Тема оформления</div>
                         <div class="setting-description" id="currentThemeText">Системная</div>
                     </div>
                     
-                    <div class="setting-item" onclick="openNotificationsSettings()">
+                    <div class="setting-item" id="notificationsSettingsBtn">
                         <div class="setting-title">Уведомления</div>
                         <div class="setting-description">Настройка push-уведомлений</div>
                     </div>
-                    <div class="setting-item" onclick="openPrivacySettings()">
+                    
+                    <div class="setting-item" id="privacySettingsBtn">
                         <div class="setting-title">Конфиденциальность</div>
                         <div class="setting-description">Настройки приватности</div>
                     </div>
-                    <div class="setting-item" onclick="addToFavorites()">
+                    
+                    <div class="setting-item" id="favoritesBtn">
                         <div class="setting-title">В избранное</div>
                         <div class="setting-description">Добавить приложение в избранное</div>
                     </div>
-                    <div class="setting-item" onclick="openAppInfo()">
+                    
+                    <div class="setting-item" id="appInfoBtn">
                         <div class="setting-title">О приложении</div>
                         <div class="setting-description">Версия 2.0 с играми</div>
+                    </div>
+                    
+                    <div class="setting-item" id="supportBtn">
+                        <div class="setting-title">Поддержка</div>
+                        <div class="setting-description">Связь с разработчиками</div>
                     </div>
                 </div>
             </div>
@@ -164,8 +172,8 @@
                     </div>
                     
                     <div class="waiting-actions">
-                        <button class="action-button secondary" onclick="cancelWaiting()">Отменить поиск</button>
-                        <button class="action-button primary" onclick="modifySearch()">Изменить критерии</button>
+                        <button class="action-button secondary" id="cancelWaitingBtn">Отменить поиск</button>
+                        <button class="action-button primary" id="modifySearchBtn">Изменить критерии</button>
                     </div>
                 </div>
             </div>
@@ -175,7 +183,7 @@
         <div class="screen" id="chatRoomScreen">
             <div class="container">
                 <div class="screen-header">
-                    <button class="back-button" onclick="showScreen('chatsScreen')">‹</button>
+                    <button class="back-button" id="backToChatsBtn">‹</button>
                     <div class="chat-info">
                         <div class="chat-title" id="chatRoomTitle">Чат</div>
                         <div class="chat-members">
@@ -184,10 +192,10 @@
                         </div>
                     </div>
                     <div class="chat-actions">
-                        <button class="action-button games-button" onclick="openGamesMenu()">
+                        <button class="action-button games-button" id="openGamesMenuBtn">
                             <span style="margin-right: 4px;">🎮</span>Игры
                         </button>
-                        <button class="action-button exit-button" onclick="leaveChat()">
+                        <button class="action-button exit-button" id="leaveChatBtn">
                             <span style="margin-right: 4px;">🚪</span>Выйти
                         </button>
                     </div>
@@ -206,25 +214,25 @@
                 <div class="games-menu" id="gamesMenu">
                     <div class="games-menu-header">
                         <h3>🎮 Выберите игру</h3>
-                        <button class="close-button" onclick="closeGamesMenu()">×</button>
+                        <button class="close-button" id="closeGamesMenuBtn">×</button>
                     </div>
                     <div class="games-grid">
-                        <div class="game-card" onclick="startGame('truthOrDare')">
+                        <div class="game-card" data-game="truthOrDare">
                             <div class="game-icon">🎲</div>
                             <div class="game-title">Правда или Действие</div>
                             <div class="game-description">Классическая игра для двоих</div>
                         </div>
-                        <div class="game-card" onclick="startGame('quiz')">
+                        <div class="game-card" data-game="quiz">
                             <div class="game-icon">❓</div>
                             <div class="game-title">Викторина</div>
                             <div class="game-description">Проверьте свои знания</div>
                         </div>
-                        <div class="game-card" onclick="startGame('guessWord')">
+                        <div class="game-card" data-game="guessWord">
                             <div class="game-icon">🎯</div>
                             <div class="game-title">Угадай слово</div>
                             <div class="game-description">Объясняйте и угадывайте</div>
                         </div>
-                        <div class="game-card" onclick="startGame('guessEmotion')">
+                        <div class="game-card" data-game="guessEmotion">
                             <div class="game-icon">😊</div>
                             <div class="game-title">Угадай эмоцию</div>
                             <div class="game-description">Покажите эмоцию жестами</div>
@@ -233,8 +241,8 @@
                 </div>
 
                 <div class="message-input-container">
-                    <input type="text" id="messageInput" placeholder="Введите сообщение..." maxlength="500" oninput="handleTyping()">
-                    <button class="send-button" onclick="sendMessage()">
+                    <input type="text" id="messageInput" placeholder="Введите сообщение..." maxlength="500">
+                    <button class="send-button" id="sendMessageBtn">
                         <span style="font-size: 18px;">➤</span>
                     </button>
                 </div>
@@ -246,30 +254,30 @@
             <div class="modal-content compact-form">
                 <div class="modal-header">
                     <div class="modal-title" id="modalTitle">Создать чат для Общения</div>
-                    <button class="close-button" onclick="closeCreateChatModal()">×</button>
+                    <button class="close-button" id="closeCreateChatModalBtn">×</button>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Ваш пол</label>
                     <div class="options-grid" id="myGenderOptions">
-                        <div class="option-button active" onclick="toggleOption(this)">Мужской</div>
-                        <div class="option-button" onclick="toggleOption(this)">Женский</div>
+                        <div class="option-button active" data-value="Мужской">Мужской</div>
+                        <div class="option-button" data-value="Женский">Женский</div>
                     </div>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Ваш возраст: <span id="myAgeValue">25</span> лет</label>
                     <div class="slider-container">
-                        <input type="range" min="18" max="80" value="25" class="slider" id="myAgeSlider" oninput="updateMyAge()">
+                        <input type="range" min="18" max="80" value="25" class="slider" id="myAgeSlider">
                     </div>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Пол собеседника</label>
                     <div class="options-grid" id="partnerGenderOptions">
-                        <div class="option-button" onclick="toggleOption(this)">Мужской</div>
-                        <div class="option-button" onclick="toggleOption(this)">Женский</div>
-                        <div class="option-button active" onclick="toggleOption(this)">Любой</div>
+                        <div class="option-button" data-value="Мужской">Мужской</div>
+                        <div class="option-button" data-value="Женский">Женский</div>
+                        <div class="option-button active" data-value="Любой">Любой</div>
                     </div>
                 </div>
                 
@@ -281,14 +289,14 @@
                                 <span>Диапазон: <span id="minAgeValue">18</span> - <span id="maxAgeValue">35</span> лет</span>
                             </div>
                             <div class="slider-wrapper">
-                                <input type="range" min="18" max="80" value="18" class="slider" id="minAgeSlider" oninput="updateAgeRange()">
-                                <input type="range" min="18" max="80" value="35" class="slider" id="maxAgeSlider" oninput="updateAgeRange()">
+                                <input type="range" min="18" max="80" value="18" class="slider" id="minAgeSlider">
+                                <input type="range" min="18" max="80" value="35" class="slider" id="maxAgeSlider">
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <button class="create-button" onclick="createChat()">Создать чат</button>
+                <button class="create-button" id="createChatConfirmBtn">Создать чат</button>
             </div>
         </div>
 
@@ -297,11 +305,11 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <div class="modal-title">Выбор темы</div>
-                    <button class="close-button" onclick="closeThemeModal()">×</button>
+                    <button class="close-button" id="closeThemeModalBtn">×</button>
                 </div>
                 
                 <div class="theme-options">
-                    <div class="theme-option" data-theme="system" onclick="selectTheme('system')">
+                    <div class="theme-option" data-theme="system">
                         <div class="theme-preview system-theme">
                             <div class="theme-half light"></div>
                             <div class="theme-half dark"></div>
@@ -310,25 +318,25 @@
                             <div class="theme-name">Системная</div>
                             <div class="theme-description">Автоматическое определение</div>
                         </div>
-                        <div class="theme-check" id="check-system">✓</div>
+                        <div class="theme-check">✓</div>
                     </div>
                     
-                    <div class="theme-option" data-theme="light" onclick="selectTheme('light')">
+                    <div class="theme-option" data-theme="light">
                         <div class="theme-preview light-theme"></div>
                         <div class="theme-info">
                             <div class="theme-name">Светлая</div>
                             <div class="theme-description">Как в ВК днем</div>
                         </div>
-                        <div class="theme-check" id="check-light">✓</div>
+                        <div class="theme-check">✓</div>
                     </div>
                     
-                    <div class="theme-option" data-theme="dark" onclick="selectTheme('dark')">
+                    <div class="theme-option" data-theme="dark">
                         <div class="theme-preview dark-theme"></div>
                         <div class="theme-info">
                             <div class="theme-name">Темная</div>
                             <div class="theme-description">Как в ВК ночью</div>
                         </div>
-                        <div class="theme-check" id="check-dark">✓</div>
+                        <div class="theme-check">✓</div>
                     </div>
                 </div>
             </div>
@@ -336,15 +344,15 @@
 
         <!-- Нижнее меню -->
         <div class="bottom-menu">
-            <div class="menu-item active" onclick="showScreen('chatsScreen')">
+            <div class="menu-item active" data-screen="chatsScreen">
                 <div class="menu-icon">💬</div>
                 <div class="menu-text">Чаты</div>
             </div>
-            <div class="menu-item" onclick="showScreen('profileScreen')">
+            <div class="menu-item" data-screen="profileScreen">
                 <div class="menu-icon">👤</div>
                 <div class="menu-text">Профиль</div>
             </div>
-            <div class="menu-item" onclick="showScreen('settingsScreen')">
+            <div class="menu-item" data-screen="settingsScreen">
                 <div class="menu-icon">⚙️</div>
                 <div class="menu-text">Настройки</div>
             </div>
