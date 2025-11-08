@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Анонимный чат | VK</title>
-    <!-- VK Bridge для VK Mini Apps -->
+    <title>Анонимный чат | Игры в чате</title>
     <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
-    <!-- Socket.io CDN -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -16,13 +14,13 @@
         <div class="screen active" id="chatsScreen">
             <div class="container">
                 <div class="header">
-                    <h1>Анонимный чат</h1>
-                    <p>Общайтесь анонимно в реальном времени</p>
+                    <h1>Анонимный чат + Игры</h1>
+                    <p>Общайтесь и играйте в реальном времени! 🎮</p>
                 </div>
                 
                 <div class="notification-section">
-                    <div class="notification-title">Добро пожаловать!</div>
-                    <div class="notification-text">Создавайте приватные чаты для двоих и находите собеседников</div>
+                    <div class="notification-title">🎉 Уникальная фишка!</div>
+                    <div class="notification-text">Играйте в игры прямо во время общения с собеседником</div>
                     <button class="notification-button" onclick="enableNotifications()">Включить уведомления</button>
                 </div>
                 
@@ -30,7 +28,7 @@
                 <div class="chat-tabs">
                     <div class="chat-tab active" onclick="switchChatTab('Общение', this)">💬 Общение</div>
                     <div class="chat-tab" onclick="switchChatTab('Флирт', this)">😊 Флирт</div>
-                    <div class="chat-tab" onclick="switchChatTab('Роль', this)">🎭 Роль</div>
+                    <div class="chat-tab" onclick="switchChatTab('Игры', this)">🎮 Игры</div>
                 </div>
                 
                 <div class="create-chat-card" onclick="openCreateChatModal()">
@@ -54,14 +52,14 @@
             <div class="container">
                 <div class="header">
                     <h1>Профиль</h1>
-                    <p>Статистика и настройки</p>
+                    <p>Статистика и достижения</p>
                 </div>
                 
                 <div class="profile-section">
                     <div class="profile-header">
                         <div class="profile-avatar" id="currentAvatar">👤</div>
                         <h2 id="profileName">Анонимный пользователь</h2>
-                        <p>Репутация: <span id="profileReputation">150</span> баллов</p>
+                        <p>Уровень: <span id="profileLevel">1</span> | Опыт: <span id="profileXP">0/100</span></p>
                     </div>
                     
                     <div class="profile-stats">
@@ -70,32 +68,25 @@
                             <div class="stat-label">Создано чатов</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-value" id="messagesCount">0</div>
-                            <div class="stat-label">Сообщений</div>
+                            <div class="stat-value" id="gamesCount">0</div>
+                            <div class="stat-label">Сыграно игр</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="achievementsCount">0</div>
+                            <div class="stat-label">Достижения</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-value" id="friendsCount">0</div>
                             <div class="stat-label">Друзей</div>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="daysCount">1</div>
-                            <div class="stat-label">Дней в чате</div>
-                        </div>
                     </div>
                 </div>
-                
-                <div class="settings-list">
-                    <div class="setting-item" onclick="shareApp()">
-                        <div class="setting-title">Поделиться приложением</div>
-                        <div class="setting-description">Рассказать друзьям о чате</div>
-                    </div>
-                    <div class="setting-item" onclick="openMyChats()">
-                        <div class="setting-title">Мои чаты</div>
-                        <div class="setting-description">Просмотр активных чатов</div>
-                    </div>
-                    <div class="setting-item" onclick="inviteFriends()">
-                        <div class="setting-title">Пригласить друзей</div>
-                        <div class="setting-description">Пригласить друзей из VK</div>
+
+                <!-- Достижения -->
+                <div class="achievements-section">
+                    <h3 style="margin-bottom: 16px;">🎯 Ваши достижения</h3>
+                    <div class="achievements-grid" id="achievementsContainer">
+                        <!-- Достижения будут добавляться здесь -->
                     </div>
                 </div>
             </div>
@@ -110,7 +101,6 @@
                 </div>
                 
                 <div class="settings-list">
-                    <!-- Переключатель тем -->
                     <div class="setting-item" onclick="openThemeSettings()">
                         <div class="setting-title">Тема оформления</div>
                         <div class="setting-description" id="currentThemeText">Системная</div>
@@ -130,11 +120,7 @@
                     </div>
                     <div class="setting-item" onclick="openAppInfo()">
                         <div class="setting-title">О приложении</div>
-                        <div class="setting-description">Версия и информация</div>
-                    </div>
-                    <div class="setting-item" onclick="support()">
-                        <div class="setting-title">Поддержка</div>
-                        <div class="setting-description">Связь с разработчиками</div>
+                        <div class="setting-description">Версия 2.0 с играми</div>
                     </div>
                 </div>
             </div>
@@ -198,6 +184,9 @@
                         </div>
                     </div>
                     <div class="chat-actions">
+                        <button class="action-button games-button" onclick="openGamesMenu()">
+                            <span style="margin-right: 4px;">🎮</span>Игры
+                        </button>
                         <button class="action-button exit-button" onclick="leaveChat()">
                             <span style="margin-right: 4px;">🚪</span>Выйти
                         </button>
@@ -209,6 +198,36 @@
                         <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
                         <div style="font-size: 16px; color: var(--text-secondary); text-align: center;">
                             Чат создан! Ожидаем подключения собеседника...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Меню игр -->
+                <div class="games-menu" id="gamesMenu">
+                    <div class="games-menu-header">
+                        <h3>🎮 Выберите игру</h3>
+                        <button class="close-button" onclick="closeGamesMenu()">×</button>
+                    </div>
+                    <div class="games-grid">
+                        <div class="game-card" onclick="startGame('truthOrDare')">
+                            <div class="game-icon">🎲</div>
+                            <div class="game-title">Правда или Действие</div>
+                            <div class="game-description">Классическая игра для двоих</div>
+                        </div>
+                        <div class="game-card" onclick="startGame('quiz')">
+                            <div class="game-icon">❓</div>
+                            <div class="game-title">Викторина</div>
+                            <div class="game-description">Проверьте свои знания</div>
+                        </div>
+                        <div class="game-card" onclick="startGame('guessWord')">
+                            <div class="game-icon">🎯</div>
+                            <div class="game-title">Угадай слово</div>
+                            <div class="game-description">Объясняйте и угадывайте</div>
+                        </div>
+                        <div class="game-card" onclick="startGame('guessEmotion')">
+                            <div class="game-icon">😊</div>
+                            <div class="game-title">Угадай эмоцию</div>
+                            <div class="game-description">Покажите эмоцию жестами</div>
                         </div>
                     </div>
                 </div>
@@ -267,8 +286,6 @@
                             </div>
                         </div>
                     </div>
-                    <input type="hidden" id="minAge" value="18">
-                    <input type="hidden" id="maxAge" value="35">
                 </div>
                 
                 <button class="create-button" onclick="createChat()">Создать чат</button>
@@ -312,24 +329,6 @@
                             <div class="theme-description">Как в ВК ночью</div>
                         </div>
                         <div class="theme-check" id="check-dark">✓</div>
-                    </div>
-                    
-                    <div class="theme-option" data-theme="space" onclick="selectTheme('space')">
-                        <div class="theme-preview space-theme"></div>
-                        <div class="theme-info">
-                            <div class="theme-name">Космическая</div>
-                            <div class="theme-description">Темная с неоновыми акцентами</div>
-                        </div>
-                        <div class="theme-check" id="check-space">✓</div>
-                    </div>
-                    
-                    <div class="theme-option" data-theme="purple" onclick="selectTheme('purple')">
-                        <div class="theme-preview purple-theme"></div>
-                        <div class="theme-info">
-                            <div class="theme-name">Фиолетовая</div>
-                            <div class="theme-description">Градиенты и современный дизайн</div>
-                        </div>
-                        <div class="theme-check" id="check-purple">✓</div>
                     </div>
                 </div>
             </div>
