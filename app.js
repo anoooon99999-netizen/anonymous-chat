@@ -212,6 +212,18 @@ function startGame(gameType) {
     }
 
     closeGamesMenu();
+    
+    // Отправляем игру собеседнику через socket
+    if (window.socket) {
+        console.log('🚀 Отправка игры собеседнику:', gameType);
+        window.socket.emit('start_game', {
+            chatId: window.currentChat.id,
+            gameType: gameType,
+            userId: window.vkUser?.id || 'anonymous'
+        });
+    }
+
+    // Локально запускаем игру
     currentGame = {
         type: gameType,
         state: 'waiting',
@@ -254,15 +266,6 @@ function startTruthOrDare() {
     currentGame.question = randomItem;
     currentGame.isTruth = isTruth;
     currentGame.state = 'playing';
-    
-    if (window.socket) {
-        window.socket.emit('game_started', {
-            chatId: window.currentChat.id,
-            gameType: 'truthOrDare',
-            question: randomItem,
-            isTruth: isTruth
-        });
-    }
 }
 
 function startQuiz() {
@@ -288,14 +291,6 @@ function startQuiz() {
     currentGame.question = randomQuestion;
     currentGame.answers = {};
     currentGame.state = 'playing';
-    
-    if (window.socket) {
-        window.socket.emit('game_started', {
-            chatId: window.currentChat.id,
-            gameType: 'quiz',
-            question: randomQuestion
-        });
-    }
 }
 
 function answerQuiz(answerIndex) {
@@ -306,33 +301,60 @@ function answerQuiz(answerIndex) {
     
     currentGame.answers[playerId] = {
         answer: answerIndex,
-        correct: isCorrect
+        correct: isCorrect,
+        answered: true
     };
     
-    updateGameMessage();
-    
-    const allPlayersAnswered = Object.keys(currentGame.answers).length === 2;
-    
-    if (allPlayersAnswered) {
-        endQuizGame();
-    }
-    
+    // Отправляем ответ собеседнику
     if (window.socket) {
         window.socket.emit('game_answer', {
             chatId: window.currentChat.id,
             gameType: 'quiz',
             playerId: playerId,
             answer: answerIndex,
-            correct: isCorrect
+            correct: isCorrect,
+            question: currentGame.question
         });
+    }
+    
+    updateQuizMessage();
+    
+    // Проверяем, ответили ли оба игрока
+    const allPlayersAnswered = Object.keys(currentGame.answers).length === 2;
+    
+    if (allPlayersAnswered) {
+        setTimeout(endQuizGame, 1000);
     }
 }
 
-function updateGameMessage() {
+function updateQuizMessage() {
     const messages = document.querySelectorAll('.game-message');
     if (messages.length > 0) {
         const lastGameMessage = messages[messages.length - 1];
-        // Обновление содержимого сообщения игры
+        
+        let player1Status = '❓';
+        let player2Status = '❓';
+        
+        if (currentGame.answers[window.vkUser?.id]) {
+            player1Status = currentGame.answers[window.vkUser?.id].correct ? '✅' : '❌';
+        }
+        
+        // Ищем ответ второго игрока
+        const otherPlayerId = Object.keys(currentGame.answers).find(id => id !== window.vkUser?.id);
+        if (otherPlayerId) {
+            player2Status = currentGame.answers[otherPlayerId].correct ? '✅' : '❌';
+        }
+        
+        const updatedContent = `
+            <div class="game-question">❓ Викторина</div>
+            <div>${currentGame.question.question}</div>
+            <div class="game-stats">
+                <span>Игрок 1: ${player1Status}</span>
+                <span>Игрок 2: ${player2Status}</span>
+            </div>
+        `;
+        
+        lastGameMessage.innerHTML = updatedContent;
     }
 }
 
@@ -345,6 +367,14 @@ function endQuizGame() {
     let resultMessage = "🎉 Результаты викторины:\n";
     resultMessage += `Игрок 1: ${player1Correct ? '✅ Правильно' : '❌ Неправильно'}\n`;
     resultMessage += `Игрок 2: ${player2Correct ? '✅ Правильно' : '❌ Неправильно'}`;
+    
+    if (player1Correct && player2Correct) {
+        resultMessage += "\n🎊 Оба игрока ответили правильно!";
+    } else if (player1Correct || player2Correct) {
+        resultMessage += `\n🏆 ${player1Correct ? 'Игрок 1' : 'Игрок 2'} победил!`;
+    } else {
+        resultMessage += "\n😞 Оба игрока ошиблись";
+    }
     
     sendGameMessage(resultMessage);
     currentGame = null;
@@ -362,11 +392,14 @@ function startGuessWord() {
     
     const gameMessage = `
         <div class="game-question">🎯 Угадай слово</div>
-        <div>Слово: ${hiddenWord}</div>
+        <div>Слово: <span id="hiddenWord">${hiddenWord}</span></div>
         <div>Подсказка: ${getWordHint(randomWord)}</div>
         <div class="game-stats">
             <span>Букв: ${randomWord.length}</span>
-            <span>Попытки: 3</span>
+            <span>Попытки: <span id="attemptsCount">3</span></span>
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; color: var(--text-secondary);">
+            Напишите слово в чате чтобы угадать
         </div>
     `;
     
@@ -376,12 +409,14 @@ function startGuessWord() {
     currentGame.attempts = 3;
     currentGame.state = 'playing';
     
+    // Отправляем игру собеседнику
     if (window.socket) {
         window.socket.emit('game_started', {
             chatId: window.currentChat.id,
             gameType: 'guessWord',
             word: randomWord,
-            hint: getWordHint(randomWord)
+            hint: getWordHint(randomWord),
+            attempts: 3
         });
     }
 }
@@ -397,7 +432,17 @@ function getWordHint(word) {
         'музыка': 'Искусство звуков и мелодий',
         'фильм': 'Движущиеся картинки на экране',
         'спорт': 'Физическая активность для здоровья',
-        'еда': 'То, что мы едим для питания'
+        'еда': 'То, что мы едим для питания',
+        'дружба': 'Близкие отношения между людьми',
+        'любовь': 'Сильное чувство привязанности',
+        'работа': 'Деятельность для заработка',
+        'отпуск': 'Время отдыха от работы',
+        'мечта': 'То, что очень хочется осуществить',
+        'путешествие': 'Поездка в другие места',
+        'животное': 'Живое существо, не растение',
+        'растение': 'Живой организм, обычно с листьями',
+        'город': 'Крупный населенный пункт',
+        'страна': 'Территория с собственным правительством'
     };
     return hints[word] || 'Популярное слово';
 }
@@ -408,8 +453,20 @@ function handleGuessWordAttempt(guess) {
     const normalizedGuess = guess.toLowerCase().trim();
     const normalizedWord = currentGame.word.toLowerCase();
     
+    // Отправляем попытку собеседнику
+    if (window.socket) {
+        window.socket.emit('game_attempt', {
+            chatId: window.currentChat.id,
+            gameType: 'guessWord',
+            playerId: window.vkUser?.id || 'anonymous',
+            guess: guess,
+            attemptsLeft: currentGame.attempts - 1
+        });
+    }
+    
     if (normalizedGuess === normalizedWord) {
-        sendGameMessage(`🎉 Правильно! Слово было: "${currentGame.word}"`);
+        const winMessage = `🎉 ${window.vkUser?.first_name || 'Игрок'} угадал слово: "${currentGame.word}"`;
+        sendGameMessage(winMessage);
         addXP(15);
         userStats.gamesPlayed++;
         saveUserStats();
@@ -417,10 +474,19 @@ function handleGuessWordAttempt(guess) {
         currentGame = null;
     } else {
         currentGame.attempts--;
+        
+        // Обновляем отображение попыток
+        const attemptsElement = document.getElementById('attemptsCount');
+        if (attemptsElement) {
+            attemptsElement.textContent = currentGame.attempts;
+        }
+        
         if (currentGame.attempts > 0) {
-            sendGameMessage(`❌ Неправильно! Осталось попыток: ${currentGame.attempts}`);
+            const wrongMessage = `❌ "${guess}" - неправильно! Осталось попыток: ${currentGame.attempts}`;
+            sendMessageToChat(wrongMessage, true);
         } else {
-            sendGameMessage(`💀 Игра окончена! Слово было: "${currentGame.word}"`);
+            const loseMessage = `💀 Игра окончена! Слово было: "${currentGame.word}"`;
+            sendGameMessage(loseMessage);
             currentGame = null;
         }
     }
@@ -437,6 +503,9 @@ function startGuessEmotion() {
         <div class="game-stats">
             <span>Время: 60 сек</span>
         </div>
+        <div style="margin-top: 10px; font-size: 12px; color: var(--text-secondary);">
+            Напишите эмоцию в чате чтобы угадать
+        </div>
     `;
     
     sendGameMessage(gameMessage);
@@ -444,6 +513,7 @@ function startGuessEmotion() {
     currentGame.state = 'showing';
     currentGame.showingPlayer = window.vkUser?.id || 'anonymous';
     
+    // Отправляем игру собеседнику
     if (window.socket) {
         window.socket.emit('game_started', {
             chatId: window.currentChat.id,
@@ -460,15 +530,27 @@ function handleGuessEmotionAttempt(guess) {
     const normalizedGuess = guess.toLowerCase().trim();
     const normalizedEmotion = currentGame.emotion.toLowerCase();
     
+    // Отправляем попытку собеседнику
+    if (window.socket) {
+        window.socket.emit('game_attempt', {
+            chatId: window.currentChat.id,
+            gameType: 'guessEmotion',
+            playerId: window.vkUser?.id || 'anonymous',
+            guess: guess
+        });
+    }
+    
     if (normalizedGuess === normalizedEmotion) {
-        sendGameMessage(`🎉 Правильно! Эмоция была: "${currentGame.emotion}"`);
+        const winMessage = `🎉 ${window.vkUser?.first_name || 'Игрок'} угадал эмоцию: "${currentGame.emotion}"`;
+        sendGameMessage(winMessage);
         addXP(12);
         userStats.gamesPlayed++;
         saveUserStats();
         updateProfileStats();
         currentGame = null;
     } else {
-        sendGameMessage(`❌ Неправильно! Попробуйте еще раз`);
+        const wrongMessage = `❌ "${guess}" - неправильно! Попробуйте еще раз`;
+        sendMessageToChat(wrongMessage, true);
     }
 }
 
@@ -484,6 +566,23 @@ function sendGameMessage(content) {
         container.innerHTML = '';
     }
     
+    container.appendChild(messageElement);
+    container.scrollTop = container.scrollHeight;
+}
+
+function sendMessageToChat(message, isGameMessage = false) {
+    const container = document.getElementById('messagesContainer');
+    if (!container) return;
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${isGameMessage ? 'game-message' : 'message-my'}`;
+    
+    const messageContent = `
+        <div class="message-content">${escapeHtml(message)}</div>
+        <div class="message-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+    `;
+    
+    messageElement.innerHTML = messageContent;
     container.appendChild(messageElement);
     container.scrollTop = container.scrollHeight;
 }
@@ -711,18 +810,135 @@ function initSocketConnection() {
 function setupSocketHandlers() {
     if (!window.socket) return;
 
-    window.socket.on('game_started', (data) => {
+    // Обработчик начала игры от собеседника
+    window.socket.on('start_game', (data) => {
         if (window.currentChat && data.chatId === window.currentChat.id) {
-            handleIncomingGame(data);
-        }
-    });
-    
-    window.socket.on('game_answer', (data) => {
-        if (window.currentChat && data.chatId === window.currentChat.id && currentGame) {
-            handleGameAnswer(data);
+            console.log('🎮 Получена игра от собеседника:', data.gameType);
+            showNotification(`🎮 Собеседник начал игру: ${games[data.gameType]?.name}`);
+            
+            currentGame = {
+                type: data.gameType,
+                state: 'playing',
+                players: {},
+                currentPlayer: data.userId
+            };
+
+            switch (data.gameType) {
+                case 'truthOrDare':
+                    startTruthOrDare();
+                    break;
+                case 'quiz':
+                    startQuiz();
+                    break;
+                case 'guessWord':
+                    startGuessWord();
+                    break;
+                case 'guessEmotion':
+                    startGuessEmotion();
+                    break;
+            }
         }
     });
 
+    // Обработчик ответа в викторине
+    window.socket.on('game_answer', (data) => {
+        if (window.currentChat && data.chatId === window.currentChat.id && currentGame) {
+            console.log('📝 Получен ответ от собеседника:', data);
+            
+            if (currentGame.type === 'quiz') {
+                currentGame.answers[data.playerId] = {
+                    answer: data.answer,
+                    correct: data.correct,
+                    answered: true
+                };
+                
+                updateQuizMessage();
+                
+                const allPlayersAnswered = Object.keys(currentGame.answers).length === 2;
+                if (allPlayersAnswered) {
+                    setTimeout(endQuizGame, 1000);
+                }
+            }
+        }
+    });
+
+    // Обработчик начала игры (альтернативный)
+    window.socket.on('game_started', (data) => {
+        if (window.currentChat && data.chatId === window.currentChat.id) {
+            console.log('🎮 Получена игра через game_started:', data.gameType);
+            
+            currentGame = {
+                type: data.gameType,
+                state: 'playing',
+                players: {}
+            };
+
+            switch (data.gameType) {
+                case 'guessWord':
+                    currentGame.word = data.word;
+                    currentGame.hidden = '*'.repeat(data.word.length);
+                    currentGame.attempts = data.attempts;
+                    
+                    const gameMessage = `
+                        <div class="game-question">🎯 Угадай слово</div>
+                        <div>Слово: <span id="hiddenWord">${currentGame.hidden}</span></div>
+                        <div>Подсказка: ${data.hint}</div>
+                        <div class="game-stats">
+                            <span>Букв: ${data.word.length}</span>
+                            <span>Попытки: <span id="attemptsCount">${data.attempts}</span></span>
+                        </div>
+                        <div style="margin-top: 10px; font-size: 12px; color: var(--text-secondary);">
+                            Напишите слово в чате чтобы угадать
+                        </div>
+                    `;
+                    sendGameMessage(gameMessage);
+                    break;
+                    
+                case 'guessEmotion':
+                    currentGame.emotion = data.emotion;
+                    currentGame.state = 'guessing';
+                    currentGame.showingPlayer = data.showingPlayer;
+                    
+                    const emotionMessage = `
+                        <div class="game-question">😊 Угадай эмоцию</div>
+                        <div>Собеседник показывает эмоцию...</div>
+                        <div>Вы угадываете</div>
+                        <div class="game-stats">
+                            <span>Время: 60 сек</span>
+                        </div>
+                        <div style="margin-top: 10px; font-size: 12px; color: var(--text-secondary);">
+                            Напишите эмоцию в чате чтобы угадать
+                        </div>
+                    `;
+                    sendGameMessage(emotionMessage);
+                    break;
+            }
+        }
+    });
+
+    // Обработчик попыток в играх
+    window.socket.on('game_attempt', (data) => {
+        if (window.currentChat && data.chatId === window.currentChat.id && currentGame) {
+            console.log('🎯 Получена попытка от собеседника:', data);
+            
+            if (currentGame.type === 'guessWord') {
+                const attemptMessage = `👤 Собеседник попытался: "${data.guess}"`;
+                sendMessageToChat(attemptMessage, true);
+                
+                if (data.attemptsLeft !== undefined) {
+                    const attemptsElement = document.getElementById('attemptsCount');
+                    if (attemptsElement) {
+                        attemptsElement.textContent = data.attemptsLeft;
+                    }
+                }
+            } else if (currentGame.type === 'guessEmotion') {
+                const attemptMessage = `👤 Собеседник думает, что это: "${data.guess}"`;
+                sendMessageToChat(attemptMessage, true);
+            }
+        }
+    });
+
+    // Существующие обработчики
     window.socket.on('chat_messages', (data) => {
         if (window.currentChat && data.chatId === window.currentChat.id) {
             renderMessages(data.messages);
@@ -823,98 +1039,6 @@ function setupSocketHandlers() {
     window.socket.on('error', (data) => {
         showNotification('❌ ' + data.message);
     });
-}
-
-function handleIncomingGame(data) {
-    currentGame = {
-        type: data.gameType,
-        state: 'playing',
-        players: {}
-    };
-    
-    switch (data.gameType) {
-        case 'truthOrDare':
-            currentGame.question = data.question;
-            currentGame.isTruth = data.isTruth;
-            const gameMessage1 = `
-                <div class="game-question">🎲 Правда или Действие</div>
-                <div>${data.isTruth ? '📖 Правда:' : '🎯 Действие:'} ${data.question}</div>
-                <div class="game-stats">
-                    <span>Игрок 1: ❓</span>
-                    <span>Игрок 2: ❓</span>
-                </div>
-            `;
-            sendGameMessage(gameMessage1);
-            break;
-            
-        case 'quiz':
-            currentGame.question = data.question;
-            currentGame.answers = {};
-            let optionsHTML = '';
-            data.question.options.forEach((option, index) => {
-                optionsHTML += `<div class="game-option" onclick="answerQuiz(${index})">${option}</div>`;
-            });
-            const gameMessage2 = `
-                <div class="game-question">❓ Викторина</div>
-                <div>${data.question.question}</div>
-                <div class="game-options">${optionsHTML}</div>
-                <div class="game-stats">
-                    <span>Игрок 1: ❓</span>
-                    <span>Игрок 2: ❓</span>
-                </div>
-            `;
-            sendGameMessage(gameMessage2);
-            break;
-            
-        case 'guessWord':
-            currentGame.word = data.word;
-            currentGame.hidden = '*'.repeat(data.word.length);
-            currentGame.attempts = 3;
-            const gameMessage3 = `
-                <div class="game-question">🎯 Угадай слово</div>
-                <div>Слово: ${currentGame.hidden}</div>
-                <div>Подсказка: ${data.hint}</div>
-                <div class="game-stats">
-                    <span>Букв: ${data.word.length}</span>
-                    <span>Попытки: 3</span>
-                </div>
-            `;
-            sendGameMessage(gameMessage3);
-            break;
-            
-        case 'guessEmotion':
-            currentGame.emotion = data.emotion;
-            currentGame.state = 'guessing';
-            currentGame.showingPlayer = data.showingPlayer;
-            const gameMessage4 = `
-                <div class="game-question">😊 Угадай эмоцию</div>
-                <div>Собеседник показывает эмоцию...</div>
-                <div>Вы угадываете</div>
-                <div class="game-stats">
-                    <span>Время: 60 сек</span>
-                </div>
-            `;
-            sendGameMessage(gameMessage4);
-            break;
-    }
-}
-
-function handleGameAnswer(data) {
-    if (!currentGame) return;
-    
-    switch (currentGame.type) {
-        case 'quiz':
-            currentGame.answers[data.playerId] = {
-                answer: data.answer,
-                correct: data.correct
-            };
-            
-            const allPlayersAnswered = Object.keys(currentGame.answers).length === 2;
-            if (allPlayersAnswered) {
-                endQuizGame();
-            }
-            break;
-    }
 }
 
 window.loadChatsFromServer = async function() {
