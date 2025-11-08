@@ -140,6 +140,51 @@
             </div>
         </div>
 
+        <!-- Экран ожидания собеседника -->
+        <div class="screen" id="waitingScreen">
+            <div class="container">
+                <div class="waiting-content">
+                    <div class="waiting-icon">⏳</div>
+                    <h2 class="waiting-title">Ожидаем собеседника</h2>
+                    <p class="waiting-description">Ищем подходящего участника по вашим критериям...</p>
+                    
+                    <div class="waiting-info">
+                        <div class="waiting-criteria">
+                            <div class="criteria-item">
+                                <span class="criteria-label">Ваш пол:</span>
+                                <span class="criteria-value" id="waitingMyGender">Мужской</span>
+                            </div>
+                            <div class="criteria-item">
+                                <span class="criteria-label">Ваш возраст:</span>
+                                <span class="criteria-value" id="waitingMyAge">25</span>
+                            </div>
+                            <div class="criteria-item">
+                                <span class="criteria-label">Ищем:</span>
+                                <span class="criteria-value" id="waitingPartnerGender">Любой пол</span>
+                            </div>
+                            <div class="criteria-item">
+                                <span class="criteria-label">Возраст:</span>
+                                <span class="criteria-value" id="waitingPartnerAge">18-35 лет</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="waiting-animation">
+                        <div class="loading-dots">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="waiting-actions">
+                        <button class="action-button secondary" onclick="cancelWaiting()">Отменить поиск</button>
+                        <button class="action-button primary" onclick="modifySearch()">Изменить критерии</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Экран чата -->
         <div class="screen" id="chatRoomScreen">
             <div class="container">
@@ -163,7 +208,7 @@
                     <div class="empty-chat">
                         <div style="font-size: 48px; margin-bottom: 16px;">💭</div>
                         <div style="font-size: 16px; color: var(--text-secondary); text-align: center;">
-                            Чат создан! Ожидайте подключения собеседника...
+                            Чат создан! Ожидаем подключения собеседника...
                         </div>
                     </div>
                 </div>
@@ -179,7 +224,7 @@
 
         <!-- Модальное окно создания чата -->
         <div class="modal-overlay" id="createChatModal">
-            <div class="modal-content">
+            <div class="modal-content compact-form">
                 <div class="modal-header">
                     <div class="modal-title" id="modalTitle">Создать чат для Общения</div>
                     <button class="close-button" onclick="closeCreateChatModal()">×</button>
@@ -194,8 +239,10 @@
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Ваш возраст</label>
-                    <input type="number" class="age-input" id="myAge" placeholder="25" min="18" max="80" value="25">
+                    <label class="form-label">Ваш возраст: <span id="myAgeValue">25</span> лет</label>
+                    <div class="slider-container">
+                        <input type="range" min="18" max="80" value="25" class="slider" id="myAgeSlider" oninput="updateMyAge()">
+                    </div>
                 </div>
                 
                 <div class="form-group">
