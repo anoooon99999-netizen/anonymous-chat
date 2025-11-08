@@ -465,6 +465,7 @@ async function loadAndRenderChats() {
     renderChatsList();
 }
 
+// РЕНДЕРИНГ В СЕТКУ 2-3 ЧАТА В ЛИНИЮ
 function renderChatsList() {
     const container = document.getElementById('chatsContainer');
     if (!container) {
@@ -479,10 +480,10 @@ function renderChatsList() {
 
     if (filteredChats.length === 0) {
         container.innerHTML = `
-            <div style="text-align: center; padding: 30px 16px; color: var(--text-secondary);">
-                <div style="font-size: 40px; margin-bottom: 12px;">💬</div>
-                <div>Активных чатов в разделе "${currentTheme}" пока нет</div>
-                <div style="font-size: 13px; margin-top: 6px;">Создайте первый чат!</div>
+            <div class="empty-state">
+                <div class="empty-icon">💬</div>
+                <div class="empty-text">Активных чатов в разделе "${currentTheme}" пока нет</div>
+                <div style="font-size: 13px; margin-top: 6px; color: var(--text-secondary);">Создайте первый чат!</div>
             </div>
         `;
         return;
@@ -504,11 +505,9 @@ function renderChatsList() {
                     <span class="info-value">${chat.lookingFor}</span>
                 </div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="chat-footer">
                 <div class="theme-tag">${chat.theme}</div>
-                <div style="font-size: 11px; color: var(--text-secondary);">
-                    ${getTimeAgo(chat.timestamp)}
-                </div>
+                <div class="chat-time">${getTimeAgo(chat.timestamp)}</div>
             </div>
         `;
         container.appendChild(chatElement);
@@ -693,8 +692,8 @@ async function startChat(chat) {
     const messagesContainer = document.getElementById('messagesContainer');
     if (messagesContainer) {
         messagesContainer.innerHTML = `
-            <div style="text-align: center; padding: 30px 16px; color: var(--text-secondary);">
-                <div style="font-size: 40px; margin-bottom: 12px;">💭</div>
+            <div class="empty-chat">
+                <div class="empty-icon">💭</div>
                 <div>Загружаем чат...</div>
             </div>
         `;
@@ -757,8 +756,8 @@ function renderMessages(messages) {
     
     if (messages.length === 0) {
         container.innerHTML = `
-            <div style="text-align: center; padding: 30px 16px; color: var(--text-secondary);">
-                <div style="font-size: 40px; margin-bottom: 12px;">💭</div>
+            <div class="empty-chat">
+                <div class="empty-icon">💭</div>
                 <div>Пока нет сообщений</div>
                 <div style="font-size: 13px; margin-top: 6px;">Начните общение первым!</div>
             </div>
@@ -913,8 +912,8 @@ function createChatWithParams(params) {
     const messagesContainer = document.getElementById('messagesContainer');
     if (messagesContainer) {
         messagesContainer.innerHTML = `
-            <div style="text-align: center; padding: 30px 16px; color: var(--text-secondary);">
-                <div style="font-size: 40px; margin-bottom: 12px;">💭</div>
+            <div class="empty-chat">
+                <div class="empty-icon">💭</div>
                 <div>Создаем новый чат...</div>
             </div>
         `;
