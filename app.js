@@ -186,6 +186,7 @@ function updateThemeSelection() {
 
 // ===== СИСТЕМА ИГР =====
 function openGamesMenu() {
+    console.log('🎮 Открытие меню игр');
     const gamesMenu = document.getElementById('gamesMenu');
     if (gamesMenu) {
         gamesMenu.classList.add('active');
@@ -1537,9 +1538,152 @@ function showNotification(message) {
     }, 3000);
 }
 
+// ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
 function setupEventListeners() {
     console.log('🔧 Настройка обработчиков событий...');
     
+    // === ОСНОВНЫЕ КНОПКИ ===
+    
+    // Кнопка создания чата
+    const createChatBtn = document.getElementById('createChatBtn');
+    if (createChatBtn) {
+        createChatBtn.addEventListener('click', openCreateChatModal);
+    }
+    
+    // Кнопки вкладок чатов
+    document.querySelectorAll('.chat-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            switchChatTab(this.dataset.tab, this);
+        });
+    });
+    
+    // Кнопка отправки сообщения
+    const sendMessageBtn = document.getElementById('sendMessageBtn');
+    if (sendMessageBtn) {
+        sendMessageBtn.addEventListener('click', sendMessage);
+    }
+    
+    // Кнопка открытия меню игр
+    const openGamesMenuBtn = document.getElementById('openGamesMenuBtn');
+    if (openGamesMenuBtn) {
+        openGamesMenuBtn.addEventListener('click', openGamesMenu);
+    }
+    
+    // Кнопка закрытия меню игр
+    const closeGamesMenuBtn = document.getElementById('closeGamesMenuBtn');
+    if (closeGamesMenuBtn) {
+        closeGamesMenuBtn.addEventListener('click', closeGamesMenu);
+    }
+    
+    // Кнопка выхода из чата
+    const leaveChatBtn = document.getElementById('leaveChatBtn');
+    if (leaveChatBtn) {
+        leaveChatBtn.addEventListener('click', leaveChat);
+    }
+    
+    // Кнопка назад в чате
+    const backToChatsBtn = document.getElementById('backToChatsBtn');
+    if (backToChatsBtn) {
+        backToChatsBtn.addEventListener('click', function() {
+            showScreen('chatsScreen');
+        });
+    }
+    
+    // === КНОПКИ В МОДАЛЬНЫХ ОКНАХ ===
+    
+    // Создание чата
+    const createChatConfirmBtn = document.getElementById('createChatConfirmBtn');
+    if (createChatConfirmBtn) {
+        createChatConfirmBtn.addEventListener('click', createChat);
+    }
+    
+    const closeCreateChatModalBtn = document.getElementById('closeCreateChatModalBtn');
+    if (closeCreateChatModalBtn) {
+        closeCreateChatModalBtn.addEventListener('click', closeCreateChatModal);
+    }
+    
+    // Тема оформления
+    const themeSettingsBtn = document.getElementById('themeSettingsBtn');
+    if (themeSettingsBtn) {
+        themeSettingsBtn.addEventListener('click', openThemeSettings);
+    }
+    
+    const closeThemeModalBtn = document.getElementById('closeThemeModalBtn');
+    if (closeThemeModalBtn) {
+        closeThemeModalBtn.addEventListener('click', closeThemeModal);
+    }
+    
+    // Выбор темы
+    document.querySelectorAll('.theme-option').forEach(option => {
+        option.addEventListener('click', function() {
+            selectTheme(this.dataset.theme);
+        });
+    });
+    
+    // === КНОПКИ В ОЖИДАНИИ ===
+    const cancelWaitingBtn = document.getElementById('cancelWaitingBtn');
+    if (cancelWaitingBtn) {
+        cancelWaitingBtn.addEventListener('click', cancelWaiting);
+    }
+    
+    const modifySearchBtn = document.getElementById('modifySearchBtn');
+    if (modifySearchBtn) {
+        modifySearchBtn.addEventListener('click', modifySearch);
+    }
+    
+    // === КНОПКИ ИГР ===
+    document.querySelectorAll('.game-card').forEach(card => {
+        card.addEventListener('click', function() {
+            startGame(this.dataset.game);
+        });
+    });
+    
+    // === ОПЦИИ В ФОРМАХ ===
+    document.querySelectorAll('.option-button').forEach(button => {
+        button.addEventListener('click', function() {
+            toggleOption(this);
+        });
+    });
+    
+    // === НИЖНЕЕ МЕНЮ ===
+    document.querySelectorAll('.bottom-menu .menu-item').forEach(item => {
+        item.addEventListener('click', function() {
+            showScreen(this.dataset.screen);
+        });
+    });
+    
+    // === НАСТРОЙКИ ===
+    const enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
+    if (enableNotificationsBtn) {
+        enableNotificationsBtn.addEventListener('click', enableNotifications);
+    }
+    
+    const notificationsSettingsBtn = document.getElementById('notificationsSettingsBtn');
+    if (notificationsSettingsBtn) {
+        notificationsSettingsBtn.addEventListener('click', openNotificationsSettings);
+    }
+    
+    const privacySettingsBtn = document.getElementById('privacySettingsBtn');
+    if (privacySettingsBtn) {
+        privacySettingsBtn.addEventListener('click', openPrivacySettings);
+    }
+    
+    const favoritesBtn = document.getElementById('favoritesBtn');
+    if (favoritesBtn) {
+        favoritesBtn.addEventListener('click', addToFavorites);
+    }
+    
+    const appInfoBtn = document.getElementById('appInfoBtn');
+    if (appInfoBtn) {
+        appInfoBtn.addEventListener('click', openAppInfo);
+    }
+    
+    const supportBtn = document.getElementById('supportBtn');
+    if (supportBtn) {
+        supportBtn.addEventListener('click', support);
+    }
+    
+    // === МОДАЛЬНЫЕ ОКНА ===
     document.querySelectorAll('.modal-overlay').forEach(modal => {
         modal.addEventListener('click', function(e) {
             if (e.target === this) {
@@ -1548,6 +1692,7 @@ function setupEventListeners() {
         });
     });
 
+    // === ПОЛЕ ВВОДА СООБЩЕНИЙ ===
     const messageInput = document.getElementById('messageInput');
     if (messageInput) {
         messageInput.addEventListener('keypress', function(e) {
@@ -1559,6 +1704,7 @@ function setupEventListeners() {
         messageInput.addEventListener('input', handleTyping);
     }
 
+    // === ПОЛЗУНКИ ВОЗРАСТА ===
     const myAgeSlider = document.getElementById('myAgeSlider');
     const minSlider = document.getElementById('minAgeSlider');
     const maxSlider = document.getElementById('maxAgeSlider');
@@ -1576,6 +1722,7 @@ function setupEventListeners() {
     updateAgeRange();
 }
 
+// Дополнительные функции
 function enableNotifications() {
     if ('Notification' in window) {
         Notification.requestPermission().then(permission => {
