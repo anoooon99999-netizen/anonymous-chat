@@ -250,7 +250,6 @@ function startTruthOrDare() {
     currentGame.isTruth = isTruth;
     currentGame.state = 'playing';
     
-    // Отправляем игру собеседнику через socket
     if (window.socket) {
         window.socket.emit('game_started', {
             chatId: window.currentChat.id,
@@ -305,17 +304,14 @@ function answerQuiz(answerIndex) {
         correct: isCorrect
     };
     
-    // Обновляем сообщение игры
     updateGameMessage();
     
-    // Проверяем, ответили ли оба игрока
     const allPlayersAnswered = Object.keys(currentGame.answers).length === 2;
     
     if (allPlayersAnswered) {
         endQuizGame();
     }
     
-    // Отправляем ответ собеседнику
     if (window.socket) {
         window.socket.emit('game_answer', {
             chatId: window.currentChat.id,
@@ -328,11 +324,10 @@ function answerQuiz(answerIndex) {
 }
 
 function updateGameMessage() {
-    // Находим последнее игровое сообщение и обновляем его
     const messages = document.querySelectorAll('.game-message');
     if (messages.length > 0) {
         const lastGameMessage = messages[messages.length - 1];
-        // Здесь можно обновить содержимое сообщения
+        // Обновление содержимого сообщения игры
     }
 }
 
@@ -349,7 +344,6 @@ function endQuizGame() {
     sendGameMessage(resultMessage);
     currentGame = null;
     
-    // Начисляем опыт
     addXP(10);
     userStats.gamesPlayed++;
     saveUserStats();
@@ -403,6 +397,30 @@ function getWordHint(word) {
     return hints[word] || 'Популярное слово';
 }
 
+function handleGuessWordAttempt(guess) {
+    if (!currentGame || currentGame.type !== 'guessWord') return;
+    
+    const normalizedGuess = guess.toLowerCase().trim();
+    const normalizedWord = currentGame.word.toLowerCase();
+    
+    if (normalizedGuess === normalizedWord) {
+        sendGameMessage(`🎉 Правильно! Слово было: "${currentGame.word}"`);
+        addXP(15);
+        userStats.gamesPlayed++;
+        saveUserStats();
+        updateProfileStats();
+        currentGame = null;
+    } else {
+        currentGame.attempts--;
+        if (currentGame.attempts > 0) {
+            sendGameMessage(`❌ Неправильно! Осталось попыток: ${currentGame.attempts}`);
+        } else {
+            sendGameMessage(`💀 Игра окончена! Слово было: "${currentGame.word}"`);
+            currentGame = null;
+        }
+    }
+}
+
 function startGuessEmotion() {
     const game = games.guessEmotion;
     const randomEmotion = game.emotions[Math.floor(Math.random() * game.emotions.length)];
@@ -431,6 +449,24 @@ function startGuessEmotion() {
     }
 }
 
+function handleGuessEmotionAttempt(guess) {
+    if (!currentGame || currentGame.type !== 'guessEmotion') return;
+    
+    const normalizedGuess = guess.toLowerCase().trim();
+    const normalizedEmotion = currentGame.emotion.toLowerCase();
+    
+    if (normalizedGuess === normalizedEmotion) {
+        sendGameMessage(`🎉 Правильно! Эмоция была: "${currentGame.emotion}"`);
+        addXP(12);
+        userStats.gamesPlayed++;
+        saveUserStats();
+        updateProfileStats();
+        currentGame = null;
+    } else {
+        sendGameMessage(`❌ Неправильно! Попробуйте еще раз`);
+    }
+}
+
 function sendGameMessage(content) {
     const container = document.getElementById('messagesContainer');
     if (!container) return;
@@ -439,7 +475,6 @@ function sendGameMessage(content) {
     messageElement.className = 'message game-message';
     messageElement.innerHTML = content;
     
-    // Очищаем placeholder если он есть
     if (container.innerHTML.includes('Пока нет сообщений') || container.innerHTML.includes('Загружаем чат')) {
         container.innerHTML = '';
     }
@@ -557,7 +592,6 @@ function updateUserInterface(userInfo) {
     }
 }
 
-// Переключение вкладок чатов
 function switchChatTab(theme, element) {
     console.log('🔄 Переключение на вкладку:', theme);
     
@@ -574,7 +608,6 @@ function switchChatTab(theme, element) {
     renderChatsList();
 }
 
-// Функции для работы с чатами
 function addChatToList(chat) {
     console.log('➕ Добавляем чат в список:', chat);
     
@@ -618,7 +651,6 @@ function updateOnlineCount() {
     }
 }
 
-// Socket.io функции
 async function loadSocketIO() {
     return new Promise((resolve) => {
         if (typeof io !== 'undefined') {
@@ -668,7 +700,6 @@ function initSocketConnection() {
 function setupSocketHandlers() {
     if (!window.socket) return;
 
-    // Обработчики игр
     window.socket.on('game_started', (data) => {
         if (window.currentChat && data.chatId === window.currentChat.id) {
             handleIncomingGame(data);
@@ -681,7 +712,6 @@ function setupSocketHandlers() {
         }
     });
 
-    // Существующие обработчики
     window.socket.on('chat_messages', (data) => {
         if (window.currentChat && data.chatId === window.currentChat.id) {
             renderMessages(data.messages);
@@ -876,9 +906,6 @@ function handleGameAnswer(data) {
     }
 }
 
-// Остальные функции (loadAndRenderChats, renderChatsList, createChat, и т.д.)
-// остаются такими же как в предыдущей версии, но с небольшими улучшениями
-
 window.loadChatsFromServer = async function() {
     try {
         console.log('📡 Загрузка активных чатов с сервера...');
@@ -960,7 +987,6 @@ function renderChatsList() {
     });
 }
 
-// Модальное окно создания чата
 function openCreateChatModal() {
     const modal = document.getElementById('createChatModal');
     const modalTitle = document.getElementById('modalTitle');
@@ -1114,7 +1140,6 @@ async function createChat() {
     }
 }
 
-// Показать экран ожидания
 function showWaitingScreen(chat, params) {
     console.log('⏳ Показываем экран ожидания для чата:', chat.id);
     
@@ -1128,7 +1153,6 @@ function showWaitingScreen(chat, params) {
     showScreen('waitingScreen');
 }
 
-// Отмена поиска собеседника
 function cancelWaiting() {
     console.log('❌ Отмена поиска собеседника для чата:', waitingChatId);
     
@@ -1144,7 +1168,6 @@ function cancelWaiting() {
     showNotification('🔍 Поиск собеседника отменен');
 }
 
-// Изменить критерии поиска
 function modifySearch() {
     console.log('🔧 Изменение критериев поиска');
     
@@ -1153,7 +1176,6 @@ function modifySearch() {
     openCreateChatModal();
 }
 
-// Работа с чатом
 async function startChat(chat) {
     console.log('💬 Запуск чата:', chat.id);
     
@@ -1305,6 +1327,19 @@ async function sendMessage() {
         return;
     }
 
+    // Проверяем, является ли сообщение попыткой угадать слово или эмоцию в игре
+    if (currentGame) {
+        if (currentGame.type === 'guessWord') {
+            handleGuessWordAttempt(text);
+            input.value = '';
+            return;
+        } else if (currentGame.type === 'guessEmotion' && currentGame.state === 'guessing') {
+            handleGuessEmotionAttempt(text);
+            input.value = '';
+            return;
+        }
+    }
+
     try {
         const response = await fetch(API_URL + '/api/messages', {
             method: 'POST',
@@ -1339,7 +1374,6 @@ async function sendMessage() {
     }
 }
 
-// Навигация
 function showScreen(screenId) {
     console.log('🔄 Переключение на экран:', screenId);
     
@@ -1396,7 +1430,6 @@ function toggleBottomMenu(screenId) {
     }
 }
 
-// Утилиты
 function toggleOption(element) {
     if (!element) return;
     
@@ -1543,7 +1576,6 @@ function setupEventListeners() {
     updateAgeRange();
 }
 
-// Дополнительные функции
 function enableNotifications() {
     if ('Notification' in window) {
         Notification.requestPermission().then(permission => {
@@ -1610,7 +1642,6 @@ function leaveChat() {
     showNotification('🚪 Вы вышли из чата');
 }
 
-// Модальное окно при выходе собеседника
 function showPartnerLeftModal(chatId) {
     if (shownModals.has(chatId)) {
         return;
@@ -1764,3 +1795,5 @@ window.openGamesMenu = openGamesMenu;
 window.closeGamesMenu = closeGamesMenu;
 window.startGame = startGame;
 window.answerQuiz = answerQuiz;
+window.handleGuessWordAttempt = handleGuessWordAttempt;
+window.handleGuessEmotionAttempt = handleGuessEmotionAttempt;
