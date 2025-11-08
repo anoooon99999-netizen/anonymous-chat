@@ -108,12 +108,16 @@ const games = {
 let currentAppTheme = 'system';
 
 function initThemeSystem() {
-    const savedTheme = localStorage.getItem('app_theme');
-    if (savedTheme) {
-        currentAppTheme = savedTheme;
+    try {
+        const savedTheme = localStorage.getItem('app_theme');
+        if (savedTheme) {
+            currentAppTheme = savedTheme;
+        }
+        applyTheme(currentAppTheme);
+        updateThemeText();
+    } catch (error) {
+        console.error('Ошибка инициализации темы:', error);
     }
-    applyTheme(currentAppTheme);
-    updateThemeText();
 }
 
 function applyTheme(theme) {
@@ -528,7 +532,7 @@ function updateAchievementsDisplay() {
     container.innerHTML = '';
     
     achievements.forEach(achievement => {
-        const hasAchievement = userStats.achievements.includes(achievement.id);
+        const hasAchievement = userStats.achievements ? userStats.achievements.includes(achievement.id) : false;
         const achievementElement = document.createElement('div');
         achievementElement.className = `achievement-card ${hasAchievement ? '' : 'locked'}`;
         achievementElement.innerHTML = `
@@ -567,17 +571,23 @@ async function initApp() {
         showNotification('Анонимный режим - можно создавать чаты и играть! 🎮');
     }
 
-    initThemeSystem();
-    await loadSocketIO();
-    initSocketConnection();
+    try {
+        initThemeSystem();
+        await loadSocketIO();
+        initSocketConnection();
+        
+        await loadAndRenderChats();
+        loadUserStats();
+        updateProfileStats();
+        updateAchievementsDisplay();
+        
+        console.log('✅ Приложение с играми инициализировано');
+    } catch (error) {
+        console.error('❌ Ошибка инициализации:', error);
+    }
     
-    await loadAndRenderChats();
-    loadUserStats();
-    updateProfileStats();
-    updateAchievementsDisplay();
+    // ВАЖНО: обработчики событий запускаем ВСЕГДА, даже при ошибках
     setupEventListeners();
-    
-    console.log('✅ Приложение с играми инициализировано');
 }
 
 function updateUserInterface(userInfo) {
@@ -1466,7 +1476,17 @@ function loadUserStats() {
     try {
         const savedStats = localStorage.getItem('user_stats');
         if (savedStats) {
-            userStats = JSON.parse(savedStats);
+            const parsedStats = JSON.parse(savedStats);
+            userStats = {
+                createdChats: parsedStats.createdChats || 0,
+                sentMessages: parsedStats.sentMessages || 0,
+                gamesPlayed: parsedStats.gamesPlayed || 0,
+                friends: parsedStats.friends || 0,
+                daysActive: parsedStats.daysActive || 1,
+                level: parsedStats.level || 1,
+                xp: parsedStats.xp || 0,
+                achievements: parsedStats.achievements || []
+            };
         }
         
         const firstVisit = localStorage.getItem('first_visit');
@@ -1478,6 +1498,16 @@ function loadUserStats() {
         }
     } catch (error) {
         console.error('❌ Ошибка загрузки статистики:', error);
+        userStats = {
+            createdChats: 0,
+            sentMessages: 0,
+            gamesPlayed: 0,
+            friends: 0,
+            daysActive: 1,
+            level: 1,
+            xp: 0,
+            achievements: []
+        };
     }
 }
 
@@ -1490,21 +1520,25 @@ function saveUserStats() {
 }
 
 function updateProfileStats() {
-    const elements = {
-        'chatsCount': userStats.createdChats,
-        'gamesCount': userStats.gamesPlayed,
-        'achievementsCount': userStats.achievements.length,
-        'friendsCount': userStats.friends,
-        'profileLevel': userStats.level,
-        'profileXP': userStats.xp + '/100'
-    };
-    
-    Object.entries(elements).forEach(([id, value]) => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
-    });
+    try {
+        const elements = {
+            'chatsCount': userStats.createdChats || 0,
+            'gamesCount': userStats.gamesPlayed || 0,
+            'achievementsCount': (userStats.achievements ? userStats.achievements.length : 0),
+            'friendsCount': userStats.friends || 0,
+            'profileLevel': userStats.level || 1,
+            'profileXP': (userStats.xp || 0) + '/100'
+        };
+        
+        Object.entries(elements).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value;
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка в updateProfileStats:', error);
+    }
 }
 
 function getTimeAgo(timestamp) {
@@ -1519,79 +1553,89 @@ function getTimeAgo(timestamp) {
 }
 
 function showNotification(message) {
-    const existingSnackbars = document.querySelectorAll('.snackbar');
-    existingSnackbars.forEach(snackbar => {
-        if (snackbar.parentNode) {
-            snackbar.remove();
+    try {
+        const existingSnackbars = document.querySelectorAll('.snackbar');
+        existingSnackbars.forEach(snackbar => {
+            if (snackbar.parentNode) {
+                snackbar.remove();
+            }
+        });
+        
+        const snackbar = document.createElement('div');
+        snackbar.className = 'snackbar';
+        snackbar.textContent = message;
+        document.body.appendChild(snackbar);
+        
+        setTimeout(() => {
+            if (snackbar.parentNode) {
+                snackbar.remove();
+            }
+        }, 3000);
+    } catch (error) {
+        console.error('Ошибка показа уведомления:', error);
+    }
+}
+
+// ===== УНИВЕРСАЛЬНЫЕ ОБРАБОТЧИКИ ДЛЯ ВСЕХ УСТРОЙСТВ =====
+function setupEventListeners() {
+    console.log('🔧 Настройка обработчиков событий для всех устройств...');
+    
+    // Универсальные обработчики для всех типов событий
+    const eventTypes = ['click', 'touchstart', 'mousedown'];
+    
+    // === ОСНОВНЫЕ КНОПКИ ЧАТА ===
+    eventTypes.forEach(eventType => {
+        // Кнопка отправки сообщения
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        if (sendMessageBtn) {
+            sendMessageBtn.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📨 Кнопка отправки нажата');
+                sendMessage();
+            });
+        }
+        
+        // Кнопка открытия меню игр
+        const openGamesMenuBtn = document.getElementById('openGamesMenuBtn');
+        if (openGamesMenuBtn) {
+            openGamesMenuBtn.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🎮 Кнопка игр нажата');
+                openGamesMenu();
+            });
+        }
+        
+        // Кнопка выхода из чата
+        const leaveChatBtn = document.getElementById('leaveChatBtn');
+        if (leaveChatBtn) {
+            leaveChatBtn.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🚪 Кнопка выхода нажата');
+                leaveChat();
+            });
+        }
+        
+        // Кнопка назад
+        const backToChatsBtn = document.getElementById('backToChatsBtn');
+        if (backToChatsBtn) {
+            backToChatsBtn.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔙 Кнопка назад нажата');
+                showScreen('chatsScreen');
+            });
         }
     });
     
-    const snackbar = document.createElement('div');
-    snackbar.className = 'snackbar';
-    snackbar.textContent = message;
-    document.body.appendChild(snackbar);
-    
-    setTimeout(() => {
-        if (snackbar.parentNode) {
-            snackbar.remove();
-        }
-    }, 3000);
-}
-
-// ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
-function setupEventListeners() {
-    console.log('🔧 Настройка обработчиков событий...');
-    
-    // === ОСНОВНЫЕ КНОПКИ ===
-    
-    // Кнопка создания чата
+    // === КНОПКИ СОЗДАНИЯ ЧАТА ===
     const createChatBtn = document.getElementById('createChatBtn');
     if (createChatBtn) {
         createChatBtn.addEventListener('click', openCreateChatModal);
     }
     
-    // Кнопки вкладок чатов
-    document.querySelectorAll('.chat-tab').forEach(tab => {
-        tab.addEventListener('click', function() {
-            switchChatTab(this.dataset.tab, this);
-        });
-    });
-    
-    // Кнопка отправки сообщения
-    const sendMessageBtn = document.getElementById('sendMessageBtn');
-    if (sendMessageBtn) {
-        sendMessageBtn.addEventListener('click', sendMessage);
-    }
-    
-    // Кнопка открытия меню игр
-    const openGamesMenuBtn = document.getElementById('openGamesMenuBtn');
-    if (openGamesMenuBtn) {
-        openGamesMenuBtn.addEventListener('click', openGamesMenu);
-    }
-    
-    // Кнопка закрытия меню игр
-    const closeGamesMenuBtn = document.getElementById('closeGamesMenuBtn');
-    if (closeGamesMenuBtn) {
-        closeGamesMenuBtn.addEventListener('click', closeGamesMenu);
-    }
-    
-    // Кнопка выхода из чата
-    const leaveChatBtn = document.getElementById('leaveChatBtn');
-    if (leaveChatBtn) {
-        leaveChatBtn.addEventListener('click', leaveChat);
-    }
-    
-    // Кнопка назад в чате
-    const backToChatsBtn = document.getElementById('backToChatsBtn');
-    if (backToChatsBtn) {
-        backToChatsBtn.addEventListener('click', function() {
-            showScreen('chatsScreen');
-        });
-    }
-    
-    // === КНОПКИ В МОДАЛЬНЫХ ОКНАХ ===
-    
-    // Создание чата
     const createChatConfirmBtn = document.getElementById('createChatConfirmBtn');
     if (createChatConfirmBtn) {
         createChatConfirmBtn.addEventListener('click', createChat);
@@ -1602,25 +1646,32 @@ function setupEventListeners() {
         closeCreateChatModalBtn.addEventListener('click', closeCreateChatModal);
     }
     
-    // Тема оформления
-    const themeSettingsBtn = document.getElementById('themeSettingsBtn');
-    if (themeSettingsBtn) {
-        themeSettingsBtn.addEventListener('click', openThemeSettings);
-    }
-    
-    const closeThemeModalBtn = document.getElementById('closeThemeModalBtn');
-    if (closeThemeModalBtn) {
-        closeThemeModalBtn.addEventListener('click', closeThemeModal);
-    }
-    
-    // Выбор темы
-    document.querySelectorAll('.theme-option').forEach(option => {
-        option.addEventListener('click', function() {
-            selectTheme(this.dataset.theme);
+    // === ВКЛАДКИ ЧАТОВ ===
+    document.querySelectorAll('.chat-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            switchChatTab(this.dataset.tab, this);
         });
     });
     
-    // === КНОПКИ В ОЖИДАНИИ ===
+    // === МЕНЮ ИГР ===
+    const closeGamesMenuBtn = document.getElementById('closeGamesMenuBtn');
+    if (closeGamesMenuBtn) {
+        closeGamesMenuBtn.addEventListener('click', closeGamesMenu);
+    }
+    
+    // Кнопки выбора игр
+    document.querySelectorAll('.game-card').forEach(card => {
+        eventTypes.forEach(eventType => {
+            card.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🎯 Выбрана игра:', this.dataset.game);
+                startGame(this.dataset.game);
+            });
+        });
+    });
+    
+    // === ЭКРАН ОЖИДАНИЯ ===
     const cancelWaitingBtn = document.getElementById('cancelWaitingBtn');
     if (cancelWaitingBtn) {
         cancelWaitingBtn.addEventListener('click', cancelWaiting);
@@ -1631,17 +1682,20 @@ function setupEventListeners() {
         modifySearchBtn.addEventListener('click', modifySearch);
     }
     
-    // === КНОПКИ ИГР ===
-    document.querySelectorAll('.game-card').forEach(card => {
-        card.addEventListener('click', function() {
-            startGame(this.dataset.game);
-        });
-    });
+    // === НАСТРОЙКИ ТЕМЫ ===
+    const themeSettingsBtn = document.getElementById('themeSettingsBtn');
+    if (themeSettingsBtn) {
+        themeSettingsBtn.addEventListener('click', openThemeSettings);
+    }
     
-    // === ОПЦИИ В ФОРМАХ ===
-    document.querySelectorAll('.option-button').forEach(button => {
-        button.addEventListener('click', function() {
-            toggleOption(this);
+    const closeThemeModalBtn = document.getElementById('closeThemeModalBtn');
+    if (closeThemeModalBtn) {
+        closeThemeModalBtn.addEventListener('click', closeThemeModal);
+    }
+    
+    document.querySelectorAll('.theme-option').forEach(option => {
+        option.addEventListener('click', function() {
+            selectTheme(this.dataset.theme);
         });
     });
     
@@ -1652,46 +1706,19 @@ function setupEventListeners() {
         });
     });
     
-    // === НАСТРОЙКИ ===
+    // === ОПЦИИ В ФОРМАХ ===
+    document.querySelectorAll('.option-button').forEach(button => {
+        button.addEventListener('click', function() {
+            toggleOption(this);
+        });
+    });
+    
+    // === ДОПОЛНИТЕЛЬНЫЕ КНОПКИ ===
     const enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
     if (enableNotificationsBtn) {
         enableNotificationsBtn.addEventListener('click', enableNotifications);
     }
     
-    const notificationsSettingsBtn = document.getElementById('notificationsSettingsBtn');
-    if (notificationsSettingsBtn) {
-        notificationsSettingsBtn.addEventListener('click', openNotificationsSettings);
-    }
-    
-    const privacySettingsBtn = document.getElementById('privacySettingsBtn');
-    if (privacySettingsBtn) {
-        privacySettingsBtn.addEventListener('click', openPrivacySettings);
-    }
-    
-    const favoritesBtn = document.getElementById('favoritesBtn');
-    if (favoritesBtn) {
-        favoritesBtn.addEventListener('click', addToFavorites);
-    }
-    
-    const appInfoBtn = document.getElementById('appInfoBtn');
-    if (appInfoBtn) {
-        appInfoBtn.addEventListener('click', openAppInfo);
-    }
-    
-    const supportBtn = document.getElementById('supportBtn');
-    if (supportBtn) {
-        supportBtn.addEventListener('click', support);
-    }
-    
-    // === МОДАЛЬНЫЕ ОКНА ===
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.addEventListener('click', function(e) {
-            if (e.target === this) {
-                this.style.display = 'none';
-            }
-        });
-    });
-
     // === ПОЛЕ ВВОДА СООБЩЕНИЙ ===
     const messageInput = document.getElementById('messageInput');
     if (messageInput) {
@@ -1703,7 +1730,7 @@ function setupEventListeners() {
         
         messageInput.addEventListener('input', handleTyping);
     }
-
+    
     // === ПОЛЗУНКИ ВОЗРАСТА ===
     const myAgeSlider = document.getElementById('myAgeSlider');
     const minSlider = document.getElementById('minAgeSlider');
@@ -1718,8 +1745,19 @@ function setupEventListeners() {
         maxSlider.addEventListener('input', updateAgeRange);
     }
     
+    // === МОДАЛЬНЫЕ ОКНА ===
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.style.display = 'none';
+            }
+        });
+    });
+    
     updateMyAge();
     updateAgeRange();
+    
+    console.log('✅ Все обработчики событий установлены');
 }
 
 // Дополнительные функции
