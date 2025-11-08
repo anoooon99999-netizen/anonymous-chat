@@ -17,6 +17,7 @@ let typingTimer = null;
 let onlineUsers = new Set();
 let lastChatParams = null;
 let shownModals = new Set();
+let waitingChatId = null;
 
 // ===== СИСТЕМА ТЕМ =====
 let currentAppTheme = 'system';
@@ -206,6 +207,12 @@ function setupSocketHandlers() {
         console.log('🎉 Чат активирован:', data.chatId);
         removeChatFromList(data.chatId);
         
+        if (waitingChatId === data.chatId) {
+            // Переходим из экрана ожидания в чат
+            showScreen('chatRoomScreen');
+            waitingChatId = null;
+        }
+        
         if (window.currentChat && data.chatId === window.currentChat.id) {
             showNotification(data.message || '💬 Найден собеседник! Чат активирован');
             onlineUsers = new Set([window.vkUser?.id, 'partner']);
@@ -217,6 +224,12 @@ function setupSocketHandlers() {
     window.socket.on('chat_removed', (data) => {
         console.log('🗑️ Чат полностью удален с сервера:', data.chatId);
         removeChatFromList(data.chatId);
+        
+        if (waitingChatId === data.chatId) {
+            showNotification('❌ Чат был удален до нахождения собеседника');
+            showScreen('chatsScreen');
+            waitingChatId = null;
+        }
     });
     
     window.socket.on('user_joined', (data) => {
@@ -532,6 +545,16 @@ function closeCreateChatModal() {
     }
 }
 
+// Обновление своего возраста через ползунок
+function updateMyAge() {
+    const slider = document.getElementById('myAgeSlider');
+    const valueDisplay = document.getElementById('myAgeValue');
+    
+    if (slider && valueDisplay) {
+        valueDisplay.textContent = slider.value;
+    }
+}
+
 function updateAgeRange() {
     const minSlider = document.getElementById('minAgeSlider');
     const maxSlider = document.getElementById('maxAgeSlider');
@@ -561,18 +584,18 @@ async function createChat() {
     console.log('🔍 Начинаем создание чата...');
     
     const myGenderElement = document.querySelector('#myGenderOptions .option-button.active');
-    const myAgeElement = document.getElementById('myAge');
+    const myAgeSlider = document.getElementById('myAgeSlider');
     const partnerGenderElement = document.querySelector('#partnerGenderOptions .option-button.active');
     const minAgeElement = document.getElementById('minAge');
     const maxAgeElement = document.getElementById('maxAge');
 
-    if (!myGenderElement || !myAgeElement || !partnerGenderElement || !minAgeElement || !maxAgeElement) {
+    if (!myGenderElement || !myAgeSlider || !partnerGenderElement || !minAgeElement || !maxAgeElement) {
         showNotification('❌ Ошибка: не все поля заполнены');
         return;
     }
 
     const myGender = myGenderElement.textContent;
-    const myAge = parseInt(myAgeElement.value);
+    const myAge = parseInt(myAgeSlider.value);
     const partnerGender = partnerGenderElement.textContent;
     const minAge = parseInt(minAgeElement.value);
     const maxAge = parseInt(maxAgeElement.value);
@@ -654,10 +677,10 @@ async function createChat() {
             userStats.createdChats++;
             saveUserStats();
             updateProfileStats();
-            showNotification('✅ Чат успешно создан! Ожидаем собеседника...');
-            closeCreateChatModal();
             
-            setTimeout(() => startChat(newChat), 500);
+            // Показываем экран ожидания вместо перехода сразу в чат
+            showWaitingScreen(newChat, lastChatParams);
+            closeCreateChatModal();
             
         } else {
             const errorText = await response.text();
@@ -668,6 +691,46 @@ async function createChat() {
         console.error('❌ Ошибка создания чата:', error);
         showNotification('❌ Ошибка создания чата: ' + error.message);
     }
+}
+
+// Показать экран ожидания
+function showWaitingScreen(chat, params) {
+    console.log('⏳ Показываем экран ожидания для чата:', chat.id);
+    
+    waitingChatId = chat.id;
+    
+    // Обновляем информацию на экране ожидания
+    document.getElementById('waitingMyGender').textContent = params.myGender;
+    document.getElementById('waitingMyAge').textContent = params.myAge;
+    document.getElementById('waitingPartnerGender').textContent = params.partnerGender === 'Любой' ? 'Любой пол' : params.partnerGender;
+    document.getElementById('waitingPartnerAge').textContent = params.minAge + '-' + params.maxAge + ' лет';
+    
+    showScreen('waitingScreen');
+}
+
+// Отмена поиска собеседника
+function cancelWaiting() {
+    console.log('❌ Отмена поиска собеседника для чата:', waitingChatId);
+    
+    if (waitingChatId && window.socket) {
+        window.socket.emit('leave_chat', { 
+            chatId: waitingChatId, 
+            userId: window.vkUser?.id 
+        });
+    }
+    
+    waitingChatId = null;
+    showScreen('chatsScreen');
+    showNotification('🔍 Поиск собеседника отменен');
+}
+
+// Изменить критерии поиска
+function modifySearch() {
+    console.log('🔧 Изменение критериев поиска');
+    
+    waitingChatId = null;
+    showScreen('chatsScreen');
+    openCreateChatModal();
 }
 
 // Работа с чатом
@@ -948,7 +1011,6 @@ function createChatWithParams(params) {
         userStats.createdChats++;
         saveUserStats();
         updateProfileStats();
-        showNotification('✅ Новый чат создан! Ожидаем собеседника...');
         
         const newChat = {
             id: result.id,
@@ -967,7 +1029,8 @@ function createChatWithParams(params) {
             window.socket.emit('new_chat_created', newChat);
         }
         
-        startChat(newChat);
+        // Показываем экран ожидания для нового чата
+        showWaitingScreen(newChat, params);
     })
     .catch(error => {
         console.error('❌ Ошибка создания чата:', error);
@@ -992,8 +1055,13 @@ function showScreen(screenId) {
     updateMenuActiveState(screenId);
     toggleBottomMenu(screenId);
     
-    if (screenId !== 'chatRoomScreen' && window.currentChat && window.socket) {
+    if (screenId !== 'chatRoomScreen' && screenId !== 'waitingScreen' && window.currentChat && window.socket) {
         window.socket.emit('leave_chat', { chatId: window.currentChat.id, userId: window.vkUser?.id });
+        window.currentChat = null;
+    }
+    
+    if (screenId !== 'waitingScreen') {
+        waitingChatId = null;
     }
 }
 
@@ -1155,14 +1223,20 @@ function setupEventListeners() {
         messageInput.addEventListener('input', handleTyping);
     }
 
+    const myAgeSlider = document.getElementById('myAgeSlider');
     const minSlider = document.getElementById('minAgeSlider');
     const maxSlider = document.getElementById('maxAgeSlider');
+    
+    if (myAgeSlider) {
+        myAgeSlider.addEventListener('input', updateMyAge);
+    }
     
     if (minSlider && maxSlider) {
         minSlider.addEventListener('input', updateAgeRange);
         maxSlider.addEventListener('input', updateAgeRange);
     }
     
+    updateMyAge();
     updateAgeRange();
 }
 
@@ -1275,3 +1349,7 @@ window.reportUser = reportUser;
 window.openThemeSettings = openThemeSettings;
 window.closeThemeModal = closeThemeModal;
 window.selectTheme = selectTheme;
+
+// Функции для экрана ожидания
+window.cancelWaiting = cancelWaiting;
+window.modifySearch = modifySearch;
